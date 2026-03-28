@@ -1,0 +1,60 @@
+# Gradle
+.gradle/
+build/
+*/build/
+
+# Local config
+local.properties
+keystore.properties
+
+# IDE
+.idea/
+*.iml
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Signing
+*.jks
+*.keystore
+*.ks
+*.jceks
+*.pk8
+keystore/
+**/keystore/
+
+# Firebase configuration file
+app/google-services.json
+
+# Secrets / credentials
+.env
+.env.*
+.envrc
+.direnv/
+.npmrc
+!.env.example
+!.env.template
+**/google-services.json
+**/google-services-*.json
+**/GoogleService-Info.plist
+*service-account*.json
+*service_account*.json
+*play-console*.json
+*play-service-account*.json
+*firebase-adminsdk*.json
+*firebase*.secret.json
+*gcp-credentials*.json
+*credentials*.json
+*secrets*.json
+**/secrets.properties
+**/keys.properties
+**/keystore.properties
+*.pem
+*.p12
+*.pfx
+*.key
+*.csr
+*.crt
+*.cer
+*.der

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Let\'s Go Dutch</string>
+    <string name="notification_channel_name">Group Updates</string>
+    <string name="notification_channel_desc">Expense and settlement updates for your groups</string>
+</resources>
