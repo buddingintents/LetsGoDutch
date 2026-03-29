@@ -2,6 +2,7 @@ package com.buddingintents.letsgodutch
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
@@ -128,6 +129,7 @@ fun AppScaffoldWithDrawer(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.surface)
+                    .consumeWindowInsets(paddingValues)
                     .padding(paddingValues),
             ) {
                 content()

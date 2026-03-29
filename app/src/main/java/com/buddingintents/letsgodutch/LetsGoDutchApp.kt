@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
@@ -165,6 +166,12 @@ fun LetsGoDutchApp(
     onInviteCodeConsumed: (() -> Unit)? = null,
     currentThemeMode: ThemeMode = ThemeMode.SYSTEM,
     onThemeModeChange: ((ThemeMode) -> Unit)? = null,
+    appUpdateSummary: String = "The app checks for Google Play updates automatically when it starts.",
+    isCheckingForAppUpdate: Boolean = false,
+    isDownloadedUpdateReady: Boolean = false,
+    onCheckForAppUpdateClick: () -> Unit = {},
+    onInstallDownloadedUpdateClick: () -> Unit = {},
+    onOpenPlayStoreUpdateClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val repositories = remember(context) { createRepositoryBundle(context.applicationContext) }
@@ -421,7 +428,9 @@ fun LetsGoDutchApp(
                 },
             ) { paddingValues ->
                 AuthScreen(
-                modifier = Modifier.padding(paddingValues),
+                modifier = Modifier
+                    .consumeWindowInsets(paddingValues)
+                    .padding(paddingValues),
                 onGoogleSignInClick = {
                     if (isGoogleSignInInProgress) {
                         authMessage = "Google sign-in already in progress. Please wait."
@@ -888,6 +897,9 @@ fun LetsGoDutchApp(
                 SettingsScreen(
                     currentDisplayName = currentUser.toFriendlyDisplayName(),
                     isSavingDisplayName = isSavingDisplayName,
+                    appUpdateSummary = appUpdateSummary,
+                    isCheckingForAppUpdate = isCheckingForAppUpdate,
+                    isDownloadedUpdateReady = isDownloadedUpdateReady,
                     onUpdateDisplayName = { updatedName ->
                         scope.launch {
                             isSavingDisplayName = true
@@ -913,6 +925,9 @@ fun LetsGoDutchApp(
                         }
                         groupsMessage = "App tour reset."
                     },
+                    onCheckForAppUpdateClick = onCheckForAppUpdateClick,
+                    onInstallDownloadedUpdateClick = onInstallDownloadedUpdateClick,
+                    onOpenPlayStoreUpdateClick = onOpenPlayStoreUpdateClick,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -1671,6 +1686,7 @@ fun LetsGoDutchApp(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
+                        .consumeWindowInsets(paddingValues)
                         .padding(paddingValues)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -3333,8 +3349,6 @@ private fun Context.ensureLetsGoDutchNotificationChannel() {
 
 private const val NOTIFICATION_GROUP_KEY_UPDATES = "letsgodutch_updates_group"
 private const val NOTIFICATION_GROUP_SUMMARY_ID = 1001
-private const val PLAY_STORE_DOWNLOAD_URL =
-    "https://play.google.com/store/apps/details?id=com.buddingintents.letsgodutch"
 private const val JOIN_SOURCE_DEEP_LINK = "deep_link"
 private const val JOIN_SOURCE_DRAWER = "drawer"
 

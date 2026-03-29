@@ -21,8 +21,14 @@ import androidx.compose.ui.unit.dp
 fun SettingsScreen(
     currentDisplayName: String,
     isSavingDisplayName: Boolean,
+    appUpdateSummary: String,
+    isCheckingForAppUpdate: Boolean,
+    isDownloadedUpdateReady: Boolean,
     onUpdateDisplayName: (String) -> Unit,
     onResetTourClick: () -> Unit,
+    onCheckForAppUpdateClick: () -> Unit,
+    onInstallDownloadedUpdateClick: () -> Unit,
+    onOpenPlayStoreUpdateClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var displayName by rememberSaveable(currentDisplayName) { mutableStateOf(currentDisplayName) }
@@ -77,6 +83,38 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Reset App Tour")
+        }
+
+        Text(
+            text = "App Updates",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        Text(
+            text = appUpdateSummary,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(
+            onClick = onCheckForAppUpdateClick,
+            enabled = !isCheckingForAppUpdate,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (isCheckingForAppUpdate) "Checking..." else "Check for Updates")
+        }
+        if (isDownloadedUpdateReady) {
+            Button(
+                onClick = onInstallDownloadedUpdateClick,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Install Downloaded Update")
+            }
+        }
+        Button(
+            onClick = onOpenPlayStoreUpdateClick,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Open in Google Play")
         }
     }
 }

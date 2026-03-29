@@ -8,7 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -22,9 +22,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -36,14 +41,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.WindowInsetsControllerCompat
 import com.buddingintents.letsgodutch.core.designsystem.theme.LetsGoDutchTheme
 import com.buddingintents.letsgodutch.core.designsystem.theme.ThemeMode
+import com.google.android.play.core.appupdate.AppUpdateInfo
+import com.google.android.play.core.appupdate.AppUpdateManager
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
+import com.google.android.play.core.install.InstallStateUpdatedListener
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.InstallStatus
+import com.google.android.play.core.install.model.UpdateAvailability
 import com.buddingintents.letsgodutch.theme.loadThemeMode
 import com.buddingintents.letsgodutch.theme.saveThemeMode
 import kotlinx.coroutines.delay
@@ -52,20 +66,43 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class MainActivity : ComponentActivity() {
 
     private val incomingInviteCode = MutableStateFlow<String?>(null)
+    private val appUpdateStatus = MutableStateFlow<AppUpdateStatus>(AppUpdateStatus.Idle)
+    private val appUpdatePrompt = MutableStateFlow<AppUpdatePrompt?>(null)
+    private var playStoreInstallAvailable = false
+
+    private lateinit var appUpdateManager: AppUpdateManager
+    private var pendingFlexibleUpdateInfo: AppUpdateInfo? = null
+    private val appUpdateResultLauncher =
+        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
+            refreshAppUpdateState(showUpToDateResult = false, promptIfAvailable = false)
+        }
+    private val installStateListener = InstallStateUpdatedListener { state ->
+        when (state.installStatus()) {
+            InstallStatus.PENDING,
+            InstallStatus.DOWNLOADING,
+            InstallStatus.DOWNLOADED,
+            InstallStatus.INSTALLING,
+            InstallStatus.INSTALLED,
+            InstallStatus.CANCELED,
+            InstallStatus.FAILED,
+            InstallStatus.UNKNOWN -> handleInstallStatus(state.installStatus())
+            else -> Unit
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        var keepSystemSplash = true
-        installSplashScreen().setKeepOnScreenCondition { keepSystemSplash }
-
         super.onCreate(savedInstanceState)
         incomingInviteCode.value = intent.extractInviteCode()
         requestNotificationsPermissionIfNeeded()
-        enableEdgeToEdge()
+        playStoreInstallAvailable = isInstalledFromGooglePlay()
+        if (playStoreInstallAvailable) {
+            appUpdateManager = AppUpdateManagerFactory.create(this)
+            appUpdateManager.registerListener(installStateListener)
+            refreshAppUpdateState(showUpToDateResult = false, promptIfAvailable = true)
+        } else {
+            appUpdateStatus.value = AppUpdateStatus.NotPlayInstalled
+        }
         setContent {
-            LaunchedEffect(Unit) {
-                // Release the system splash quickly; custom Compose splash handles animation.
-                keepSystemSplash = false
-            }
             var showAnimatedSplash by rememberSaveable { mutableStateOf(true) }
             var splashExit by rememberSaveable { mutableStateOf(false) }
             LaunchedEffect(Unit) {
@@ -80,7 +117,13 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
             }
+            val currentAppUpdateStatus by appUpdateStatus.collectAsState()
+            val currentAppUpdatePrompt by appUpdatePrompt.collectAsState()
             LetsGoDutchTheme(darkTheme = darkTheme) {
+                SystemBarAppearanceEffect(
+                    darkTheme = darkTheme,
+                    activity = this@MainActivity,
+                )
                 Box(modifier = Modifier.fillMaxSize()) {
                     LetsGoDutchApp(
                         incomingInviteCode = incomingInviteCode,
@@ -90,7 +133,41 @@ class MainActivity : ComponentActivity() {
                             themeMode = newMode
                             saveThemeMode(newMode)
                         },
+                        appUpdateSummary = currentAppUpdateStatus.toSummaryText(),
+                        isCheckingForAppUpdate = currentAppUpdateStatus == AppUpdateStatus.Checking,
+                        isDownloadedUpdateReady = currentAppUpdateStatus == AppUpdateStatus.ReadyToInstall,
+                        onCheckForAppUpdateClick = {
+                            refreshAppUpdateState(showUpToDateResult = true, promptIfAvailable = true)
+                        },
+                        onInstallDownloadedUpdateClick = { completeFlexibleAppUpdate() },
+                        onOpenPlayStoreUpdateClick = {
+                            openPlayStoreInlineInstall(source = "settings_inline_update")
+                        },
                     )
+                    if (!showAnimatedSplash) {
+                        when (val prompt = currentAppUpdatePrompt) {
+                            is AppUpdatePrompt.Available -> {
+                                AppUpdateAvailableDialog(
+                                    prompt = prompt,
+                                    onDismiss = { appUpdatePrompt.value = null },
+                                    onDownloadClick = { startFlexibleAppUpdate() },
+                                    onOpenPlayStoreClick = {
+                                        appUpdatePrompt.value = null
+                                        openPlayStoreInlineInstall(source = "startup_update_prompt")
+                                    },
+                                )
+                            }
+
+                            AppUpdatePrompt.ReadyToInstall -> {
+                                AppUpdateReadyDialog(
+                                    onDismiss = { appUpdatePrompt.value = null },
+                                    onInstallClick = { completeFlexibleAppUpdate() },
+                                )
+                            }
+
+                            null -> Unit
+                        }
+                    }
                     if (showAnimatedSplash) {
                         AnimatedSplashOverlay(
                             isExiting = splashExit,
@@ -107,6 +184,20 @@ class MainActivity : ComponentActivity() {
         incomingInviteCode.value = intent.extractInviteCode()
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (playStoreInstallAvailable) {
+            refreshAppUpdateState(showUpToDateResult = false, promptIfAvailable = false)
+        }
+    }
+
+    override fun onDestroy() {
+        if (::appUpdateManager.isInitialized) {
+            appUpdateManager.unregisterListener(installStateListener)
+        }
+        super.onDestroy()
+    }
+
     private fun requestNotificationsPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         val permission = Manifest.permission.POST_NOTIFICATIONS
@@ -115,9 +206,252 @@ class MainActivity : ComponentActivity() {
         ActivityCompat.requestPermissions(this, arrayOf(permission), NOTIFICATION_PERMISSION_REQUEST_CODE)
     }
 
+    private fun refreshAppUpdateState(
+        showUpToDateResult: Boolean,
+        promptIfAvailable: Boolean,
+    ) {
+        if (!playStoreInstallAvailable) {
+            appUpdatePrompt.value = null
+            appUpdateStatus.value = AppUpdateStatus.NotPlayInstalled
+            return
+        }
+        if (!::appUpdateManager.isInitialized) return
+        appUpdateStatus.value = AppUpdateStatus.Checking
+        appUpdateManager.appUpdateInfo
+            .addOnSuccessListener { appUpdateInfo ->
+                when {
+                    appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED -> {
+                        pendingFlexibleUpdateInfo = null
+                        appUpdateStatus.value = AppUpdateStatus.ReadyToInstall
+                        appUpdatePrompt.value = AppUpdatePrompt.ReadyToInstall
+                    }
+
+                    appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
+                        appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE) -> {
+                        pendingFlexibleUpdateInfo = appUpdateInfo
+                        appUpdateStatus.value = AppUpdateStatus.Available(
+                            stalenessDays = appUpdateInfo.clientVersionStalenessDays(),
+                            updatePriority = appUpdateInfo.updatePriority(),
+                        )
+                        if (promptIfAvailable) {
+                            appUpdatePrompt.value = AppUpdatePrompt.Available(
+                                stalenessDays = appUpdateInfo.clientVersionStalenessDays(),
+                                updatePriority = appUpdateInfo.updatePriority(),
+                            )
+                        }
+                    }
+
+                    else -> {
+                        pendingFlexibleUpdateInfo = null
+                        appUpdatePrompt.value = null
+                        appUpdateStatus.value = if (showUpToDateResult) {
+                            AppUpdateStatus.UpToDate
+                        } else {
+                            AppUpdateStatus.Idle
+                        }
+                    }
+                }
+            }
+            .addOnFailureListener { error ->
+                pendingFlexibleUpdateInfo = null
+                appUpdatePrompt.value = null
+                appUpdateStatus.value = AppUpdateStatus.Error(
+                    error.localizedMessage ?: "Google Play update check is unavailable on this device.",
+                )
+            }
+    }
+
+    private fun startFlexibleAppUpdate() {
+        val appUpdateInfo = pendingFlexibleUpdateInfo
+        if (appUpdateInfo == null) {
+            refreshAppUpdateState(showUpToDateResult = false, promptIfAvailable = true)
+            return
+        }
+        val updateStarted = runCatching {
+            appUpdateManager.startUpdateFlowForResult(
+                appUpdateInfo,
+                appUpdateResultLauncher,
+                AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build(),
+            )
+        }.getOrElse { error ->
+            appUpdateStatus.value = AppUpdateStatus.Error(
+                error.localizedMessage ?: "Unable to start the update flow.",
+            )
+            false
+        }
+        if (updateStarted) {
+            appUpdatePrompt.value = null
+            appUpdateStatus.value = AppUpdateStatus.Downloading
+        } else {
+            refreshAppUpdateState(showUpToDateResult = false, promptIfAvailable = true)
+        }
+    }
+
+    private fun completeFlexibleAppUpdate() {
+        appUpdateManager.completeUpdate()
+            .addOnFailureListener { error ->
+                appUpdateStatus.value = AppUpdateStatus.Error(
+                    error.localizedMessage ?: "Unable to finish installing the update.",
+                )
+            }
+    }
+
+    private fun handleInstallStatus(status: Int) {
+        when (status) {
+            InstallStatus.PENDING,
+            InstallStatus.DOWNLOADING,
+            InstallStatus.INSTALLING -> {
+                appUpdateStatus.value = AppUpdateStatus.Downloading
+            }
+
+            InstallStatus.DOWNLOADED -> {
+                appUpdateStatus.value = AppUpdateStatus.ReadyToInstall
+                appUpdatePrompt.value = AppUpdatePrompt.ReadyToInstall
+            }
+
+            InstallStatus.INSTALLED -> {
+                pendingFlexibleUpdateInfo = null
+                appUpdatePrompt.value = null
+                appUpdateStatus.value = AppUpdateStatus.UpToDate
+            }
+
+            InstallStatus.CANCELED -> {
+                appUpdatePrompt.value = null
+                appUpdateStatus.value = AppUpdateStatus.Available()
+            }
+
+            InstallStatus.FAILED,
+            InstallStatus.UNKNOWN -> {
+                appUpdatePrompt.value = null
+                appUpdateStatus.value = AppUpdateStatus.Error(
+                    "The app update could not be completed.",
+                )
+            }
+        }
+    }
+
     companion object {
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 5001
     }
+}
+
+private sealed interface AppUpdateStatus {
+    data object Idle : AppUpdateStatus
+    data object Checking : AppUpdateStatus
+    data object NotPlayInstalled : AppUpdateStatus
+    data object UpToDate : AppUpdateStatus
+    data object Downloading : AppUpdateStatus
+    data object ReadyToInstall : AppUpdateStatus
+    data class Available(
+        val stalenessDays: Int? = null,
+        val updatePriority: Int = 0,
+    ) : AppUpdateStatus
+    data class Error(val message: String) : AppUpdateStatus
+}
+
+private sealed interface AppUpdatePrompt {
+    data class Available(
+        val stalenessDays: Int?,
+        val updatePriority: Int,
+    ) : AppUpdatePrompt
+    data object ReadyToInstall : AppUpdatePrompt
+}
+
+private fun AppUpdateStatus.toSummaryText(): String = when (this) {
+    AppUpdateStatus.Idle -> "The app checks for Google Play updates automatically when it starts."
+    AppUpdateStatus.Checking -> "Checking Google Play for a newer version..."
+    AppUpdateStatus.NotPlayInstalled -> "Automatic Play updates are available after the app is installed from Google Play."
+    AppUpdateStatus.UpToDate -> "You're already on the latest Google Play version."
+    AppUpdateStatus.Downloading -> "An update is downloading in the background."
+    AppUpdateStatus.ReadyToInstall -> "An update is downloaded and ready to install."
+    is AppUpdateStatus.Available -> {
+        val details = buildList {
+            stalenessDays?.takeIf { it >= 0 }?.let { add("available for $it day(s)") }
+            updatePriority.takeIf { it > 0 }?.let { add("priority $it") }
+        }.joinToString()
+        if (details.isBlank()) {
+            "A Google Play update is available."
+        } else {
+            "A Google Play update is available ($details)."
+        }
+    }
+
+    is AppUpdateStatus.Error -> message
+}
+
+@Composable
+private fun SystemBarAppearanceEffect(
+    darkTheme: Boolean,
+    activity: MainActivity,
+) {
+    val view = LocalView.current
+    SideEffect {
+        WindowInsetsControllerCompat(activity.window, view).run {
+            isAppearanceLightStatusBars = !darkTheme
+            isAppearanceLightNavigationBars = !darkTheme
+        }
+    }
+}
+
+@Composable
+private fun AppUpdateAvailableDialog(
+    prompt: AppUpdatePrompt.Available,
+    onDismiss: () -> Unit,
+    onDownloadClick: () -> Unit,
+    onOpenPlayStoreClick: () -> Unit,
+) {
+    val detailLine = buildList {
+        prompt.stalenessDays?.takeIf { it >= 0 }?.let { add("Available for $it day(s)") }
+        prompt.updatePriority.takeIf { it > 0 }?.let { add("Priority $it") }
+    }.joinToString(" • ")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Update Available") },
+        text = {
+            Text(
+                buildString {
+                    append("A newer version is available on Google Play.")
+                    if (detailLine.isNotBlank()) {
+                        append("\n\n")
+                        append(detailLine)
+                    }
+                },
+            )
+        },
+        confirmButton = {
+            Button(onClick = onDownloadClick) {
+                Text("Download Update")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Later")
+            }
+        },
+    )
+}
+
+@Composable
+private fun AppUpdateReadyDialog(
+    onDismiss: () -> Unit,
+    onInstallClick: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Install Update") },
+        text = { Text("The latest version has finished downloading. Install it now to restart the app on the updated build.") },
+        confirmButton = {
+            Button(onClick = onInstallClick) {
+                Text("Install Now")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Later")
+            }
+        },
+    )
 }
 
 @Composable

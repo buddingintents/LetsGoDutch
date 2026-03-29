@@ -56,7 +56,7 @@ val gitCommitCount: Int? = runCatching {
     }.standardOutput.asText.get().trim().toInt()
 }.getOrNull()
 
-val minimumPlayVersionCode = 16
+val minimumPlayVersionCode = 17
 val computedVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull()
     ?: gitCommitCount
     ?: minimumPlayVersionCode
@@ -142,7 +142,6 @@ dependencies {
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.core.ktx)
-    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
@@ -161,6 +160,8 @@ dependencies {
     implementation(libs.firebase.messaging.ktx)
     implementation(libs.google.play.services.auth)
     implementation(libs.google.play.services.ads)
+    implementation(libs.google.play.app.update)
+    implementation(libs.google.play.app.update.ktx)
 
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
