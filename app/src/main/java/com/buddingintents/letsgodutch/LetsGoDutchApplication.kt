@@ -1,6 +1,7 @@
 package com.buddingintents.letsgodutch
 
 import android.app.Application
+import com.buddingintents.letsgodutch.notifications.DailySettlementReminderScheduler
 import com.buddingintents.letsgodutch.telemetry.AppTelemetry
 import com.google.firebase.FirebaseApp
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -18,6 +19,7 @@ class LetsGoDutchApplication : Application() {
         FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(true)
         FirebaseMessaging.getInstance().isAutoInitEnabled = true
         MobileAds.initialize(this)
+        DailySettlementReminderScheduler.scheduleNext(this)
         AppTelemetry.logEvent("app_started")
         runCatching {
             FirebaseDatabase.getInstance().setPersistenceEnabled(true)

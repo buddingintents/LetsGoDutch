@@ -56,7 +56,7 @@ val gitCommitCount: Int? = runCatching {
     }.standardOutput.asText.get().trim().toInt()
 }.getOrNull()
 
-val minimumPlayVersionCode = 17
+val minimumPlayVersionCode = 19
 val computedVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull()
     ?: gitCommitCount
     ?: minimumPlayVersionCode
@@ -162,10 +162,12 @@ dependencies {
     implementation(libs.google.play.services.ads)
     implementation(libs.google.play.app.update)
     implementation(libs.google.play.app.update.ktx)
+    implementation(libs.google.play.review)
 
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

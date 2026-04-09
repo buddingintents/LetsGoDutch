@@ -217,81 +217,81 @@ class FirebaseSettlementRepository(
         val outputFile = File(outputDir, "settlement_${safeGroupName}_$timestamp.pdf")
 
         val document = PdfDocument()
-        // Light theme palette: purple primary, teal secondary, dull black text
+        // Fresh Mint palette: charcoal surfaces with mint highlights.
         val pageBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 3f
-            color = Color.parseColor("#E7E0EC")
+            color = Color.parseColor("#243046")
         }
         val headerFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#F3EEFC")
+            color = Color.parseColor("#121C28")
         }
         val headerStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2f
-            color = Color.parseColor("#E8DDF5")
+            color = Color.parseColor("#3DD68C")
         }
         val sectionFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#FAFAFA")
+            color = Color.parseColor("#1C2333")
         }
         val sectionStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2f
-            color = Color.parseColor("#E7E0EC")
+            color = Color.parseColor("#2DB878")
         }
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#6B4EAA")
+            color = Color.parseColor("#3DD68C")
             textSize = 42f
             isFakeBoldText = true
         }
         val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#2D2D2D")
+            color = Color.parseColor("#EAF4F1")
             textSize = 28f
             isFakeBoldText = true
         }
         val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#2D2D2D")
+            color = Color.parseColor("#EAF4F1")
             textSize = 20f
         }
         val smallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#4A4A4A")
+            color = Color.parseColor("#DDF7EA")
             textSize = 16f
         }
         val sectionTitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#5A3E8F")
+            color = Color.parseColor("#3DD68C")
             textSize = 24f
             isFakeBoldText = true
         }
         val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            color = Color.parseColor("#D3D3D3")
+            color = Color.parseColor("#4A5969")
             strokeWidth = 2f
         }
         val tableHeaderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#E0F2F1")
+            color = Color.parseColor("#0D7A6E")
         }
         val tableOddRowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#FFFFFF")
+            color = Color.parseColor("#1A2533")
         }
         val tableEvenRowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#F5F5F5")
+            color = Color.parseColor("#243046")
         }
         val barTrackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#E0F2F1")
+            color = Color.parseColor("#314054")
         }
         val positiveBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#00897B")
+            color = Color.parseColor("#3DD68C")
         }
         val negativeBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#E57373")
+            color = Color.parseColor("#FF7B7B")
         }
 
         val generatedAt = nowDisplay()
@@ -628,13 +628,13 @@ class FirebaseSettlementRepository(
         val oval = RectF(centerX - radius, centerY - radius, centerX + radius, centerY + radius)
 
         val colors = listOf(
-            Color.parseColor("#6B4EAA"),
-            Color.parseColor("#00897B"),
-            Color.parseColor("#26A69A"),
-            Color.parseColor("#9E87D4"),
-            Color.parseColor("#4DB6AC"),
-            Color.parseColor("#7D69A8"),
-            Color.parseColor("#80CBC4"),
+            Color.parseColor("#3DD68C"),
+            Color.parseColor("#0D7A6E"),
+            Color.parseColor("#2DB878"),
+            Color.parseColor("#6B7A8D"),
+            Color.parseColor("#5BE0A4"),
+            Color.parseColor("#58C7B4"),
+            Color.parseColor("#A5EED0"),
         )
 
         val sortedPaidTotals = paidTotals.entries.sortedByDescending { it.value }

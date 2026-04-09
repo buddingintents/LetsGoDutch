@@ -11,13 +11,7 @@ value class Money(val paise: Long) {
     fun isPositive(): Boolean = paise > 0
     fun isNegative(): Boolean = paise < 0
 
-    fun toInrDisplay(): String {
-        val absValue = abs(paise)
-        val rupees = absValue / 100
-        val remainder = absValue % 100
-        val prefix = if (paise < 0) "-₹" else "₹"
-        return "$prefix$rupees.${remainder.toString().padStart(2, '0')}"
-    }
+    fun toInrDisplay(): String = toRupeeDisplay()
 
     fun toRupeeDisplay(): String {
         val absValue = abs(paise)

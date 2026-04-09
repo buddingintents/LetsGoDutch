@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Let's Go Dutch — UI Upgrade Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --mint: #3DD68C;
+    --mint-light: #E6FAF1;
+    --mint-dark: #1A9A5C;
+    --teal: #0D7A6E;
+    --charcoal: #1C2333;
+    --slate: #3A4460;
+    --fog: #F4F7F5;
+    --gold: #F5A623;
+    --danger: #FF5C5C;
+    --card-bg: #FFFFFF;
+    --text-main: #1C2333;
+    --text-muted: #6B7A8D;
+    --border: #E2E8F0;
+    --radius: 18px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Sora', sans-serif;
+    background: var(--fog);
+    color: var(--text-main);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  .hero {
+    background: linear-gradient(135deg, var(--teal) 0%, var(--charcoal) 100%);
+    padding: 56px 24px 48px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(61,214,140,0.25) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: -40px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(61,214,140,0.15) 0%, transparent 70%);
+    border-radius: 50%;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(61,214,140,0.2);
+    border: 1px solid rgba(61,214,140,0.5);
+    color: var(--mint);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 5px 14px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+  }
+  .hero h1 {
+    color: #fff;
+    font-size: clamp(24px, 5vw, 42px);
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 12px;
+  }
+  .hero h1 span { color: var(--mint); }
+  .hero p {
+    color: rgba(255,255,255,0.7);
+    font-size: 15px;
+    max-width: 560px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  /* ── Nav Tabs ── */
+  .tab-bar {
+    display: flex;
+    gap: 8px;
+    padding: 20px 24px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab {
+    flex-shrink: 0;
+    background: #fff;
+    border: 2px solid var(--border);
+    color: var(--text-muted);
+    font-family: 'Sora', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 18px;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .tab:hover { border-color: var(--mint); color: var(--mint-dark); }
+  .tab.active {
+    background: var(--mint);
+    border-color: var(--mint);
+    color: #fff;
+  }
+
+  /* ── Sections ── */
+  .section {
+    display: none;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 28px 24px 60px;
+  }
+  .section.active { display: block; }
+
+  .section-header {
+    margin-bottom: 28px;
+  }
+  .section-header h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--charcoal);
+    margin-bottom: 6px;
+  }
+  .section-header p {
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  /* ── Comparison Cards ── */
+  .comparison-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 640px) {
+    .comparison-grid { grid-template-columns: 1fr; }
+  }
+
+  .comp-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1.5px solid var(--border);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  .comp-card-header {
+    padding: 14px 18px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .comp-card-header .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .before .comp-card-header { background: #FFF5F5; color: #C53030; }
+  .before .comp-card-header .dot { background: #FC8181; }
+  .after .comp-card-header { background: var(--mint-light); color: var(--mint-dark); }
+  .after .comp-card-header .dot { background: var(--mint); }
+
+  /* ── Phone Mockup ── */
+  .phone-wrap {
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    background: #F8FAFC;
+    min-height: 340px;
+    align-items: center;
+  }
+  .phone {
+    width: 180px;
+    background: #fff;
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.14);
+    border: 2px solid #e2e8f0;
+    font-size: 8px;
+    position: relative;
+  }
+  .phone-statusbar {
+    height: 18px;
+    background: var(--charcoal);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    color: rgba(255,255,255,0.8);
+    font-size: 7px;
+    font-weight: 600;
+  }
+
+  /* BEFORE styles */
+  .before-screen { padding: 12px 10px; background: #fff; }
+  .before-screen .b-appbar {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 14px;
+  }
+  .before-screen .b-appbar-icon { font-size: 12px; }
+  .before-screen .b-appbar-title { font-size: 11px; font-weight: 600; color: #111; }
+  .before-screen .b-label { font-size: 7.5px; color: #555; margin-bottom: 3px; }
+  .before-screen .b-field {
+    border: 1px solid #aaa; border-radius: 4px;
+    padding: 5px 6px; font-size: 7.5px; color: #888;
+    margin-bottom: 10px; background: #fff;
+  }
+  .before-screen .b-section-title { font-size: 9px; font-weight: 700; margin-bottom: 4px; }
+  .before-screen .b-desc { font-size: 7px; color: #666; margin-bottom: 8px; line-height: 1.4; }
+  .before-screen .b-btn {
+    background: #1a1a4e; color: #fff;
+    border-radius: 6px; padding: 5px 10px;
+    font-size: 7.5px; font-weight: 600;
+    text-align: center; margin-bottom: 6px;
+    display: block; width: 100%;
+  }
+  .before-screen .b-btn-outline {
+    background: transparent; color: #1a1a4e;
+    border: 1.5px solid #1a1a4e;
+    border-radius: 6px; padding: 5px 10px;
+    font-size: 7.5px; font-weight: 600;
+    text-align: center; margin-bottom: 6px;
+    display: block; width: 100%;
+  }
+
+  /* AFTER — Fresh Mint styles */
+  .after-screen { padding: 12px 10px; background: linear-gradient(180deg, #F0FDF7 0%, #fff 35%); }
+  .after-screen .a-appbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .after-screen .a-appbar-title { font-size: 11px; font-weight: 800; color: #1C2333; }
+  .after-screen .a-avatar {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: linear-gradient(135deg, #3DD68C, #0D7A6E);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 7px; font-weight: 700;
+  }
+  .after-screen .a-label {
+    font-size: 7.5px; color: var(--teal); font-weight: 700;
+    letter-spacing: 0.5px; margin-bottom: 3px;
+    text-transform: uppercase;
+  }
+  .after-screen .a-field {
+    border: 1.5px solid #3DD68C; border-radius: 8px;
+    padding: 5px 6px; font-size: 7.5px; color: #1C2333;
+    margin-bottom: 10px; background: #fff;
+    box-shadow: 0 0 0 3px rgba(61,214,140,0.12);
+  }
+  .after-screen .a-section-title {
+    font-size: 10px; font-weight: 800; margin-bottom: 3px; color: #1C2333;
+  }
+  .after-screen .a-desc { font-size: 7px; color: #6B7A8D; margin-bottom: 10px; line-height: 1.5; }
+  .after-screen .a-btn {
+    background: linear-gradient(90deg, #3DD68C, #0D9E78);
+    color: #fff; border-radius: 10px; padding: 6px 10px;
+    font-size: 7.5px; font-weight: 700;
+    text-align: center; margin-bottom: 6px;
+    display: block; width: 100%;
+    box-shadow: 0 2px 8px rgba(61,214,140,0.35);
+  }
+  .after-screen .a-btn-ghost {
+    background: transparent; color: #0D7A6E;
+    border: 1.5px solid rgba(61,214,140,0.6);
+    border-radius: 10px; padding: 5px 10px;
+    font-size: 7.5px; font-weight: 600;
+    text-align: center; margin-bottom: 6px;
+    display: block; width: 100%;
+  }
+  .after-screen .a-chip {
+    display: inline-block;
+    background: var(--mint-light); color: var(--mint-dark);
+    border-radius: 10px; padding: 2px 6px;
+    font-size: 6px; font-weight: 700; margin-right: 3px;
+  }
+
+  /* Group list items */
+  .b-group-item {
+    border: 1px solid #ddd; border-radius: 5px;
+    padding: 6px 8px; margin-bottom: 5px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .b-group-icon {
+    width: 22px; height: 22px; border-radius: 4px;
+    background: #e0e0e0; flex-shrink: 0;
+  }
+  .b-group-name { font-size: 8px; font-weight: 600; color: #111; }
+  .b-group-sub { font-size: 6.5px; color: #888; }
+
+  .a-group-item {
+    border: 1.5px solid rgba(61,214,140,0.2); border-radius: 10px;
+    padding: 7px 8px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 7px;
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+  }
+  .a-group-icon {
+    width: 24px; height: 24px; border-radius: 8px;
+    background: linear-gradient(135deg, #3DD68C22, #0D7A6E33);
+    flex-shrink: 0; display: flex; align-items: center;
+    justify-content: center; font-size: 10px;
+  }
+  .a-group-name { font-size: 8px; font-weight: 700; color: #1C2333; }
+  .a-group-sub { font-size: 6.5px; color: #6B7A8D; }
+  .a-group-badge {
+    margin-left: auto; background: #3DD68C22;
+    color: #0D7A6E; border-radius: 5px;
+    padding: 1px 5px; font-size: 6px; font-weight: 700;
+  }
+
+  /* ── Insight cards ── */
+  .b-insight { background: #f5f5f5; border-radius: 5px; padding: 8px; margin-bottom: 6px; }
+  .b-insight-title { font-size: 8px; font-weight: 600; color: #333; margin-bottom: 5px; }
+  .b-pie-placeholder {
+    width: 60px; height: 60px; border-radius: 50%;
+    background: conic-gradient(#aaa 0deg 120deg, #ccc 120deg 210deg, #e0e0e0 210deg 360deg);
+    margin: 0 auto 6px;
+  }
+
+  .a-insight { background: linear-gradient(135deg, #1C2333 0%, #2D3748 100%); border-radius: 10px; padding: 8px; margin-bottom: 6px; }
+  .a-insight-title { font-size: 8px; font-weight: 700; color: #fff; margin-bottom: 5px; }
+  .a-pie-placeholder {
+    width: 60px; height: 60px; border-radius: 50%;
+    background: conic-gradient(#3DD68C 0deg 120deg, #0D7A6E 120deg 210deg, #F5A623 210deg 360deg);
+    margin: 0 auto 6px;
+    box-shadow: 0 0 12px rgba(61,214,140,0.3);
+  }
+  .a-bar-row {
+    display: flex; align-items: center; gap: 4px; margin-bottom: 3px;
+  }
+  .a-bar-label { font-size: 6px; color: rgba(255,255,255,0.7); width: 22px; flex-shrink: 0; }
+  .a-bar-track { flex: 1; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+  .a-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #3DD68C, #0D9E78); }
+
+  /* App Tour */
+  .b-tour-overlay {
+    background: rgba(0,0,0,0.4); padding: 8px;
+    border-radius: 5px;
+  }
+  .b-tour-modal {
+    background: #fff; border-radius: 10px;
+    padding: 10px; margin: 4px;
+  }
+  .b-tour-title { font-size: 9px; font-weight: 700; color: #111; margin-bottom: 3px; }
+  .b-tour-step { font-size: 7px; color: #666; margin-bottom: 6px; }
+  .b-tour-card { background: #f0f0f0; border-radius: 5px; padding: 7px; margin-bottom: 6px; }
+  .b-tour-card-title { font-size: 8.5px; font-weight: 700; color: #222; margin-bottom: 3px; }
+  .b-tour-card-text { font-size: 7px; color: #555; line-height: 1.4; }
+  .b-tour-dots { font-size: 9px; color: #7c3aed; margin-bottom: 8px; }
+  .b-tour-actions { display: flex; justify-content: flex-end; gap: 5px; }
+  .b-tour-skip { font-size: 7.5px; color: #7c3aed; font-weight: 600; padding: 4px 6px; }
+  .b-tour-next {
+    background: #7c3aed; color: #fff; border-radius: 8px;
+    font-size: 7.5px; font-weight: 700; padding: 4px 10px;
+  }
+
+  .a-tour-overlay {
+    background: rgba(18, 28, 40, 0.65); padding: 8px;
+    border-radius: 5px; backdrop-filter: blur(2px);
+  }
+  .a-tour-modal {
+    background: linear-gradient(145deg, #1C2333, #243046);
+    border-radius: 14px; padding: 10px; margin: 4px;
+    border: 1px solid rgba(61,214,140,0.2);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .a-tour-title { font-size: 9px; font-weight: 800; color: #fff; margin-bottom: 2px; }
+  .a-tour-step { font-size: 7px; color: var(--mint); font-weight: 600; margin-bottom: 6px; }
+  .a-tour-card {
+    background: rgba(61,214,140,0.08); border-radius: 10px;
+    padding: 7px; margin-bottom: 7px;
+    border: 1px solid rgba(61,214,140,0.2);
+  }
+  .a-tour-card-icon {
+    width: 18px; height: 18px; border-radius: 6px;
+    background: linear-gradient(135deg, #3DD68C, #0D7A6E);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; margin-bottom: 4px;
+  }
+  .a-tour-card-title { font-size: 8.5px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+  .a-tour-card-text { font-size: 7px; color: rgba(255,255,255,0.65); line-height: 1.4; }
+  .a-tour-progress {
+    display: flex; gap: 3px; margin-bottom: 8px;
+  }
+  .a-tour-dot {
+    height: 4px; border-radius: 2px; background: rgba(255,255,255,0.15);
+    flex: 1;
+  }
+  .a-tour-dot.active { background: var(--mint); flex: 2; }
+  .a-tour-actions { display: flex; justify-content: flex-end; gap: 5px; align-items: center; }
+  .a-tour-skip { font-size: 7px; color: rgba(255,255,255,0.5); font-weight: 600; padding: 4px 6px; }
+  .a-tour-next {
+    background: linear-gradient(90deg, #3DD68C, #0D9E78);
+    color: #fff; border-radius: 8px;
+    font-size: 7.5px; font-weight: 700; padding: 4px 10px;
+    box-shadow: 0 2px 8px rgba(61,214,140,0.4);
+  }
+
+  /* ── Description beneath comparison ── */
+  .diff-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  @media (max-width: 640px) { .diff-list { grid-template-columns: 1fr; } }
+  .diff-item {
+    background: #fff;
+    border-radius: 12px;
+    padding: 14px 16px;
+    border: 1.5px solid var(--border);
+  }
+  .diff-item.bad { border-left: 3px solid #FC8181; }
+  .diff-item.good { border-left: 3px solid var(--mint); }
+  .diff-item-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .diff-item.bad .diff-item-label { color: #C53030; }
+  .diff-item.good .diff-item-label { color: var(--mint-dark); }
+  .diff-item ul { list-style: none; padding: 0; }
+  .diff-item ul li {
+    font-size: 12px; color: var(--text-muted);
+    padding: 3px 0; line-height: 1.5;
+    padding-left: 16px; position: relative;
+  }
+  .diff-item ul li::before {
+    position: absolute; left: 0; top: 4px;
+    font-size: 9px;
+  }
+  .diff-item.bad ul li::before { content: '✕'; color: #FC8181; }
+  .diff-item.good ul li::before { content: '✓'; color: var(--mint); }
+
+  /* ── Prompt Cards ── */
+  .prompt-section-title {
+    font-size: 16px; font-weight: 700; color: var(--charcoal);
+    margin-bottom: 16px; padding-top: 8px;
+    border-top: 2px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .prompt-section-title span {
+    background: var(--mint); color: #fff;
+    width: 24px; height: 24px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; flex-shrink: 0;
+  }
+
+  .prompt-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .prompt-card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    border: 1.5px solid var(--border);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    transition: box-shadow 0.2s ease;
+  }
+  .prompt-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+
+  .prompt-card-header {
+    padding: 14px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(90deg, #F0FDF7, #fff);
+  }
+  .prompt-card-title {
+    font-size: 14px; font-weight: 700; color: var(--charcoal);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .prompt-card-title .icon {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--mint-light); display: flex;
+    align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0;
+  }
+  .prompt-tag {
+    background: var(--mint-light); color: var(--mint-dark);
+    font-size: 10px; font-weight: 700; padding: 3px 10px;
+    border-radius: 20px; letter-spacing: 0.5px;
+  }
+
+  .prompt-body {
+    padding: 16px 18px;
+  }
+  .prompt-label {
+    font-size: 10px; font-weight: 700; color: var(--text-muted);
+    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .prompt-code {
+    background: #1C2333;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: #E2E8F0;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    position: relative;
+    margin-bottom: 14px;
+  }
+  .prompt-code .keyword { color: #3DD68C; }
+  .prompt-code .string { color: #F5A623; }
+  .prompt-code .comment { color: #6B7A8D; font-style: italic; }
+  .copy-btn {
+    position: absolute; top: 10px; right: 10px;
+    background: rgba(61,214,140,0.15);
+    border: 1px solid rgba(61,214,140,0.3);
+    color: var(--mint); font-size: 11px; font-weight: 600;
+    padding: 4px 10px; border-radius: 6px; cursor: pointer;
+    transition: all 0.2s ease; font-family: 'Sora', sans-serif;
+  }
+  .copy-btn:hover { background: rgba(61,214,140,0.3); }
+  .copy-btn.copied { background: var(--mint); color: #fff; }
+
+  .prompt-meta {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;
+  }
+  .meta-chip {
+    font-size: 11px; padding: 3px 10px; border-radius: 20px;
+    font-weight: 600;
+  }
+  .meta-chip.file { background: #EFF6FF; color: #2563EB; }
+  .meta-chip.priority-high { background: #FFF5F5; color: #C53030; }
+  .meta-chip.priority-med { background: #FFFBEB; color: #92400E; }
+  .meta-chip.priority-low { background: var(--mint-light); color: var(--mint-dark); }
+
+  /* ── Color Palette Section ── */
+  .palette-row {
+    display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px;
+  }
+  .swatch {
+    flex: 1; min-width: 100px; border-radius: 12px;
+    overflow: hidden; border: 1px solid var(--border);
+  }
+  .swatch-color { height: 64px; }
+  .swatch-info { padding: 8px 10px; background: #fff; }
+  .swatch-name { font-size: 11px; font-weight: 700; color: var(--charcoal); }
+  .swatch-hex { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); }
+  .swatch-role { font-size: 10px; color: var(--text-muted); }
+
+  /* Typography section */
+  .type-sample {
+    background: #fff; border-radius: 12px; padding: 18px 20px;
+    border: 1.5px solid var(--border); margin-bottom: 12px;
+  }
+  .type-sample-label { font-size: 10px; font-weight: 700; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+
+  /* ── Footer ── */
+  .footer {
+    text-align: center; padding: 32px 24px;
+    color: var(--text-muted); font-size: 12px;
+  }
+  .footer strong { color: var(--mint-dark); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-badge">🌿 Fresh Mint Upgrade</div>
+  <h1>Let's Go Dutch<br><span>UI Upgrade Guide</span></h1>
+  <p>Before/after comparisons, design rationale, and ready-to-paste vibe coding prompts for every major screen.</p>
+</div>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="showTab('overview')">Overview</button>
+  <button class="tab" onclick="showTab('settings')">Settings Screen</button>
+  <button class="tab" onclick="showTab('groups')">Groups Screen</button>
+  <button class="tab" onclick="showTab('insights')">Insights Tab</button>
+  <button class="tab" onclick="showTab('tour')">App Tour</button>
+  <button class="tab" onclick="showTab('theme')">Design System</button>
+  <button class="tab" onclick="showTab('prompts')">All Prompts</button>
+</div>
+
+<!-- ════════════════ OVERVIEW ════════════════ -->
+<div id="tab-overview" class="section active">
+  <div class="section-header">
+    <h2>What's wrong & what needs to change</h2>
+    <p>The app has solid functionality, but its UI is fighting the "Fresh Mint" visual direction you defined. Here's the full diagnostic and the transformation roadmap.</p>
+  </div>
+
+  <div class="diff-list">
+    <div class="diff-item bad">
+      <div class="diff-item-label">Current Problems</div>
+      <ul>
+        <li>Dark navy buttons feel heavy and dated — no connection to "Fresh Mint"</li>
+        <li>Plain white backgrounds with zero surface layering or depth</li>
+        <li>System default typography (no brand voice)</li>
+        <li>Generic step dots in App Tour (asterisk + circles)</li>
+        <li>No iconography to give the app visual language</li>
+        <li>No gradient, shadow or elevation cues on cards</li>
+        <li>Form fields use plain 1px grey borders</li>
+        <li>Settings screen looks like a stock Android preference screen</li>
+        <li>Color palette is inconsistent (purple buttons, navy buttons, grey cards)</li>
+      </ul>
+    </div>
+    <div class="diff-item good">
+      <div class="diff-item-label">Proposed Direction</div>
+      <ul>
+        <li>Mint green (#3DD68C) as the primary brand color — buttons, highlights, CTAs</li>
+        <li>Warm near-black (#1C2333) for surfaces in dark accents, dialogs, and headers</li>
+        <li>Subtle mint tint (#F0FDF7) on white backgrounds to stay on-theme</li>
+        <li>Sora or Nunito as display + body font for a friendly, modern feel</li>
+        <li>Animated pill-style progress indicator in App Tour</li>
+        <li>Icon-backed group cards with gradient avatars</li>
+        <li>Dark-surface Insights tab for chart contrast</li>
+        <li>Focused input fields with mint glow ring on focus</li>
+        <li>Gradient primary buttons with branded shadow</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="background:#fff; border-radius:16px; padding:20px; border: 1.5px solid var(--border); margin-bottom:16px;">
+    <div style="font-size:13px; font-weight:700; color:var(--charcoal); margin-bottom:12px;">🗺️ Upgrade Priority Map</div>
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+      <div style="background:var(--mint-light); border-radius:10px; padding:12px; border-left:3px solid var(--mint);">
+        <div style="font-size:11px; font-weight:700; color:var(--mint-dark); margin-bottom:4px;">🔥 Priority 1</div>
+        <div style="font-size:12px; color:var(--charcoal);">Theme.kt + Color.kt<br>Typography.kt</div>
+      </div>
+      <div style="background:#FFF9EB; border-radius:10px; padding:12px; border-left:3px solid #F5A623;">
+        <div style="font-size:11px; font-weight:700; color:#92400E; margin-bottom:4px;">⚡ Priority 2</div>
+        <div style="font-size:12px; color:var(--charcoal);">GroupsScreen<br>AppTourOverlay</div>
+      </div>
+      <div style="background:#F0F4FF; border-radius:10px; padding:12px; border-left:3px solid #3B82F6;">
+        <div style="font-size:11px; font-weight:700; color:#1E40AF; margin-bottom:4px;">📋 Priority 3</div>
+        <div style="font-size:12px; color:var(--charcoal);">SettingsScreen<br>AddExpenseSheet</div>
+      </div>
+      <div style="background:#FFF5F5; border-radius:10px; padding:12px; border-left:3px solid #FC8181;">
+        <div style="font-size:11px; font-weight:700; color:#C53030; margin-bottom:4px;">✨ Priority 4</div>
+        <div style="font-size:12px; color:var(--charcoal);">InsightsTab<br>SettlementScreen</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ SETTINGS ════════════════ -->
+<div id="tab-settings" class="section">
+  <div class="section-header">
+    <h2>Settings Screen</h2>
+    <p>Currently a plain Android preferences-style layout. Needs brand identity, proper section grouping, and visual hierarchy.</p>
+  </div>
+  <div class="comparison-grid">
+    <div class="comp-card before">
+      <div class="comp-card-header"><div class="dot"></div>BEFORE — Current</div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-statusbar"><span>02:06</span><span>📶 46%</span></div>
+          <div class="before-screen">
+            <div class="b-appbar"><span class="b-appbar-icon">☰</span><span class="b-appbar-title">Settings</span></div>
+            <div class="b-section-title">Your Name</div>
+            <div class="b-desc">Update the name shown for your account and sync it across the groups you are part of.</div>
+            <div class="b-field" style="color:#aaa;">Display name</div>
+            <div class="b-btn">Save</div>
+            <hr style="border:none; border-top:1px solid #eee; margin:8px 0;">
+            <div class="b-section-title">App</div>
+            <div class="b-desc">Restart tour, check updates.</div>
+            <div class="b-btn">Check for Updates</div>
+            <div class="b-btn-outline" style="margin-top:2px;">Open in Google Play</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="comp-card after">
+      <div class="comp-card-header"><div class="dot"></div>AFTER — Fresh Mint</div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-statusbar" style="background:#0D7A6E;"><span>02:06</span><span>📶 46%</span></div>
+          <div class="after-screen">
+            <div class="a-appbar">
+              <span class="a-appbar-title">Settings</span>
+              <div class="a-avatar">AK</div>
+            </div>
+            <!-- Profile card -->
+            <div style="background:linear-gradient(135deg,#1C2333,#243046); border-radius:12px; padding:10px; margin-bottom:10px;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                <div style="width:28px;height:28px;border-radius:10px;background:linear-gradient(135deg,#3DD68C,#0D7A6E);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;">AK</div>
+                <div>
+                  <div style="font-size:8px;font-weight:700;color:#fff;">Ankit K.</div>
+                  <div style="font-size:6.5px;color:rgba(255,255,255,0.5);">ankit@gmail.com</div>
+                </div>
+              </div>
+              <div class="a-label" style="color:rgba(255,255,255,0.5);">Display Name</div>
+              <div class="a-field" style="background:rgba(255,255,255,0.07); border-color:rgba(61,214,140,0.4); color:#fff;">Ankit K.</div>
+              <div class="a-btn" style="margin-bottom:0;">Save Changes</div>
+            </div>
+            <!-- Section: App -->
+            <div class="a-label">About</div>
+            <div class="a-group-item" style="margin-bottom:5px;">
+              <div class="a-group-icon">🔄</div>
+              <div><div class="a-group-name">Check for Updates</div><div class="a-group-sub">v3.1.0 installed</div></div>
+              <div class="a-group-badge">Latest</div>
+            </div>
+            <div class="a-group-item">
+              <div class="a-group-icon">⭐</div>
+              <div><div class="a-group-name">Rate on Play Store</div><div class="a-group-sub">Enjoying the app?</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="diff-list">
+    <div class="diff-item bad">
+      <div class="diff-item-label">Issues</div>
+      <ul>
+        <li>No visual hierarchy — everything is same weight</li>
+        <li>Dark navy buttons have zero relation to mint theme</li>
+        <li>Name input is just a plain floating label field</li>
+        <li>No user avatar or account identity</li>
+      </ul>
+    </div>
+    <div class="diff-item good">
+      <div class="diff-item-label">Improvements</div>
+      <ul>
+        <li>Profile card on dark surface sets premium tone</li>
+        <li>Avatar initials reinforce account ownership</li>
+        <li>Row-style menu for secondary actions</li>
+        <li>Mint-focused input with glow ring on focus</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="prompt-section-title"><span>⌨</span> Vibe Coding Prompt — SettingsScreen.kt</div>
+  <div class="prompt-card">
+    <div class="prompt-card-header">
+      <div class="prompt-card-title"><div class="icon">⚙️</div>Redesign SettingsScreen composable</div>
+      <span class="prompt-tag">PRIORITY 3</span>
+    </div>
+    <div class="prompt-body">
+      <div class="prompt-label">Paste this into Claude Code / Cursor</div>
+      <div class="prompt-code"><button class="copy-btn" onclick="copyPrompt(this)">Copy</button><span class="comment">// Refactor: feature/settings → SettingsScreen.kt</span>
+<span class="keyword">Redesign</span> the SettingsScreen composable in the feature:settings module.
+
+<span class="keyword">Visual direction:</span> <span class="string">"Fresh Mint"</span> — a clean, modern expense-splitting app
+with mint green (#3DD68C) primary, near-black (#1C2333) surface for card areas,
+and #F0FDF7 light-mint tints on white backgrounds.
+
+<span class="keyword">Changes needed:</span>
+1. Replace the plain Column layout with a LazyColumn containing:
+   - A <span class="string">ProfileCard</span> composable at the top: dark surface (#1C2333 background),
+     user avatar with initials in a gradient circle (mint→teal), display name,
+     email address in muted text, and the editable display-name TextField
+     styled with a mint-tinted focused border ring.
+   - A <span class="string">"Save Changes"</span> FilledButton with gradient background
+     (brush = Brush.horizontalGradient(listOf(Color(0xFF3DD68C), Color(0xFF0D9E78))))
+     and a mint drop-shadow using Modifier.shadow(elevation=8.dp, spotColor=Color(0xFF3DD68C)).
+   - A section header label <span class="string">"About"</span> in uppercase mint-tinted text.
+   - Row-style menu items for "Check for Updates" and "Rate on Play Store",
+     each with a small rounded icon container (mint-tinted background) and a
+     trailing version badge or chevron.
+
+2. Typography: use MaterialTheme.typography.titleLarge (Sora Bold) for section
+   headers. Body text should be bodyMedium.
+
+3. Remove all hardcoded dark-navy (#1a1a4e) colors. Replace with
+   MaterialTheme.colorScheme references only.
+
+4. Add WindowInsets.statusBars padding at the top of the screen.
+
+<span class="comment">// Target file: feature/settings/src/main/java/.../SettingsScreen.kt</span></div>
+      <div class="prompt-meta">
+        <span class="meta-chip file">📁 feature/settings/SettingsScreen.kt</span>
+        <span class="meta-chip file">📁 core/designsystem/Theme.kt</span>
+        <span class="meta-chip priority-med">Medium priority</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ GROUPS ════════════════ -->
+<div id="tab-groups" class="section">
+  <div class="section-header">
+    <h2>Groups Screen</h2>
+    <p>The main screen users see after login. This is the highest-traffic screen — it needs personality, clear group identity, and obvious CTAs.</p>
+  </div>
+  <div class="comparison-grid">
+    <div class="comp-card before">
+      <div class="comp-card-header"><div class="dot"></div>BEFORE</div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-statusbar"><span>02:06</span><span>📶 46%</span></div>
+          <div class="before-screen">
+            <div class="b-appbar"><span class="b-appbar-icon">☰</span><span class="b-appbar-title">Let's Go Dutch</span></div>
+            <div class="b-group-item">
+              <div class="b-group-icon"></div>
+              <div><div class="b-group-name">Goa Trip 2025</div><div class="b-group-sub">5 members</div></div>
+            </div>
+            <div class="b-group-item">
+              <div class="b-group-icon"></div>
+              <div><div class="b-group-name">Flat Expenses</div><div class="b-group-sub">3 members</div></div>
+            </div>
+            <div class="b-group-item">
+              <div class="b-group-icon"></div>
+              <div><div class="b-group-name">Office Lunch</div><div class="b-group-sub">8 members</div></div>
+            </div>
+            <div style="height:12px;"></div>
+            <div class="b-btn">+ Create Group</div>
+            <div class="b-btn-outline">Join with Code</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="comp-card after">
+      <div class="comp-card-header"><div class="dot"></div>AFTER</div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-statusbar" style="background:#0D7A6E;"><span>02:06</span><span>📶 46%</span></div>
+          <div class="after-screen">
+            <div class="a-appbar">
+              <div>
+                <div style="font-size:7px;color:#6B7A8D;font-weight:600;">Good morning 👋</div>
+                <div class="a-appbar-title">Your Groups</div>
+              </div>
+              <div class="a-avatar">AK</div>
+            </div>
+            <!-- Balance summary card -->
+            <div style="background:linear-gradient(135deg,#0D7A6E,#1C2333); border-radius:12px; padding:10px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:7px;color:rgba(255,255,255,0.6);margin-bottom:2px;">You are owed</div>
+                <div style="font-size:14px;font-weight:800;color:#3DD68C;">₹1,240</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:7px;color:rgba(255,255,255,0.6);margin-bottom:2px;">You owe</div>
+                <div style="font-size:14px;font-weight:800;color:#F5A623;">₹480</div>
+              </div>
+            </div>
+            <!-- Group list -->
+            <div class="a-label">Active Groups</div>
+            <div class="a-group-item">
+              <div class="a-group-icon">🏖️</div>
+              <div><div class="a-group-name">Goa Trip 2025</div><div class="a-group-sub">5 members · 12 expenses</div></div>
+              <div class="a-group-badge">+₹620</div>
+            </div>
+            <div class="a-group-item">
+              <div class="a-group-icon">🏠</div>
+              <div><div class="a-group-name">Flat Expenses</div><div class="a-group-sub">3 members · 4 expenses</div></div>
+              <div class="a-group-badge" style="background:#FFF3CD;color:#92400E;">-₹480</div>
+            </div>
+            <div class="a-group-item">
+              <div class="a-group-icon">🍱</div>
+              <div><div class="a-group-name">Office Lunch</div><div class="a-group-sub">8 members · 7 expenses</div></div>
+              <div class="a-group-badge">+₹620</div>
+            </div>
+            <div class="a-btn" style="margin-top:6px;">+ Create Group</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="diff-list">
+    <div class="diff-item bad">
+      <div class="diff-item-label">Issues</div>
+      <ul>
+        <li>Generic list with grey placeholder boxes — no group personality</li>
+        <li>Two bottom buttons feel like afterthoughts</li>
+        <li>No balance summary — users open the app and see nothing meaningful at a glance</li>
+        <li>No contextual greeting or user identity</li>
+      </ul>
+    </div>
+    <div class="diff-item good">
+      <div class="diff-item-label">Improvements</div>
+      <ul>
+        <li>Balance overview card at top — instant "you are owed ₹X" clarity</li>
+        <li>Emoji-based group icons give personality with zero extra effort</li>
+        <li>Inline balance badge on each group row (green=owed, gold=you owe)</li>
+        <li>Contextual greeting creates warmth and daily engagement</li>
+      </ul>
+    </div>
+  </div>
+  <div class="prompt-section-title"><span>⌨</span> Vibe Coding Prompt — GroupsScreen.kt</div>
+  <div class="prompt-card">
+    <div class="prompt-card-header">
+      <div class="prompt-card-title"><div class="icon">👥</div>Redesign GroupsScreen composable</div>
+      <span class="prompt-tag">PRIORITY 2</span>
+    </div>
+    <div class="prompt-body">
+      <div class="prompt-label">Paste this into Claude Code / Cursor</div>
+      <div class="prompt-code"><button class="copy-btn" onclick="copyPrompt(this)">Copy</button><span class="comment">// Refactor: feature/groups → GroupsScreen.kt</span>
+<span class="keyword">Redesign</span> the GroupsScreen composable in the feature:groups module.
+
+<span class="keyword">Visual direction:</span> Fresh Mint theme — mint green, near-black surfaces, warm INR-focused UI.
+
+<span class="keyword">Layout structure (top to bottom in LazyColumn):</span>
+
+1. <span class="string">TopGreetingBar</span>: A Row with:
+   - Left: "Good morning 👋" in Caption style (muted), below it "Your Groups" in titleLarge bold.
+   - Right: CircularUserAvatar with the user's display name initials,
+     gradient fill (Brush.linearGradient starting mint #3DD68C to teal #0D7A6E).
+
+2. <span class="string">BalanceSummaryCard</span>: A full-width Card with:
+   - Background: Brush.linearGradient (teal #0D7A6E → charcoal #1C2333), corner radius 20dp.
+   - Two columns: "You are owed" with total in mint (#3DD68C), and "You owe" with total
+     in amber (#F5A623). Bold large text (24sp) for amounts.
+   - Compute totals from the existing balance state in your ViewModel.
+
+3. <span class="string">Section header</span> "Active Groups" in LabelLarge uppercase, mint-tinted.
+
+4. <span class="string">GroupListItem</span> composable for each group:
+   - Leading: A 40dp rounded container (10dp corner) filled with mint-tint background,
+     containing a single emoji chosen based on the group name's first char hash
+     (or a default 🤝 if not determinable).
+   - Title: Group name in bodyLarge bold. Subtitle: "<N> members · <X> expenses" in bodySmall muted.
+   - Trailing: A small Chip with the net balance for the current user — green tint if positive,
+     amber tint if negative (use ₹ prefix, format with Indian number format).
+   - Card elevation 2dp, border 1dp at 12% opacity mint.
+
+5. <span class="string">FAB</span> at screen bottom: Extended FAB with text "+ Create Group",
+   gradient background (mint → teal), mint drop-shadow.
+
+6. Add a <span class="string">"Join with invite code"</span> TextButton in bodySmall style below the FAB.
+
+<span class="comment">// Key files to modify:
+// feature/groups/src/main/java/.../GroupsScreen.kt
+// feature/groups/src/main/java/.../GroupListItem.kt (create if absent)</span></div>
+      <div class="prompt-meta">
+        <span class="meta-chip file">📁 feature/groups/GroupsScreen.kt</span>
+        <span class="meta-chip file">📁 feature/groups/GroupListItem.kt</span>
+        <span class="meta-chip priority-high">High priority</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ INSIGHTS ════════════════ -->
+<div id="tab-insights" class="section">
+  <div class="section-header">
+    <h2>Insights Tab</h2>
+    <p>Currently just a light-background screen with generic chart placeholders. Data visualization screens shine on dark surfaces.</p>
+  </div>
+  <div class="comparison-grid">
+    <div class="comp-card before">
+      <div class="comp-card-header"><div class="dot"></div>BEFORE</div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-statusbar"><span>02:06</span><span>📶 46%</span></div>
+          <div class="before-screen">
+            <div style="display:flex; border-bottom:1px solid #eee; margin-bottom:10px;">
+              <div style="flex:1;text-align:center;font-size:8px;padding-bottom:5px;border-bottom:2px solid #aaa;color:#aaa;">Ledger</div>
+              <div style="flex:1;text-align:center;font-size:8px;padding-bottom:5px;border-bottom:2px solid #1a1a4e;color:#1a1a4e;font-weight:700;">Insights</div>
+            </div>
+            <div class="b-insight">
+              <div class="b-insight-title">Expense Split</div>
+              <div class="b-pie-placeholder"></div>
+              <div style="font-size:7px;color:#888;text-align:center;">Raj: 40% · You: 30% · Priya: 30%</div>
+            </div>
+            <div class="b-insight">
+              <div class="b-insight-title">Monthly Trend</div>
+              <div style="height:36px;background:#e0e0e0;border-radius:4px;display:flex;align-items:flex-end;gap:2px;padding:4px;">
+                <div style="flex:1;background:#bbb;height:60%;border-radius:2px 2px 0 0;"></div>
+                <div style="flex:1;background:#bbb;height:80%;border-radius:2px 2px 0 0;"></div>
+                <div style="flex:1;background:#bbb;height:50%;border-radius:2px 2px 0 0;"></div>
+                <div style="flex:1;background:#bbb;height:100%;border-radius:2px 2px 0 0;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="comp-card after">
+      <div class="comp-card-header"><div class="dot"></div>AFTER</div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-statusbar" style="background:#0D7A6E;"><span>02:06</span><span>📶 46%</span></div>
+          <div class="after-screen" style="background:linear-gradient(180deg,#1C2333 0%, #1C2333 100%); padding:12px 10px;">
+            <!-- Tab bar -->
+            <div style="display:flex; background:rgba(255,255,255,0.07); border-radius:10px; margin-bottom:10px; padding:3px;">
+              <div style="flex:1;text-align:center;font-size:8px;padding:4px;color:rgba(255,255,255,0.4);">Ledger</div>
+              <div style="flex:1;text-align:center;font-size:8px;padding:4px;background:linear-gradient(90deg,#3DD68C,#0D9E78);border-radius:8px;color:#fff;font-weight:700;">Insights</div>
+            </div>
+            <!-- Pie chart -->
+            <div class="a-insight">
+              <div class="a-insight-title">Expense Split</div>
+              <div class="a-pie-placeholder"></div>
+              <div style="display:flex;justify-content:center;gap:6px;margin-top:5px;">
+                <div style="display:flex;align-items:center;gap:2px;"><div style="width:6px;height:6px;border-radius:2px;background:#3DD68C;"></div><span style="font-size:6px;color:rgba(255,255,255,0.7);">Raj 40%</span></div>
+                <div style="display:flex;align-items:center;gap:2px;"><div style="width:6px;height:6px;border-radius:2px;background:#0D7A6E;"></div><span style="font-size:6px;color:rgba(255,255,255,0.7);">You 30%</span></div>
+                <div style="display:flex;align-items:center;gap:2px;"><div style="width:6px;height:6px;border-radius:2px;background:#F5A623;"></div><span style="font-size:6px;color:rgba(255,255,255,0.7);">Priya 30%</span></div>
+              </div>
+            </div>
+            <!-- Bar chart -->
+            <div class="a-insight">
+              <div class="a-insight-title">Monthly Trend</div>
+              <div class="a-bar-row"><div class="a-bar-label">Jan</div><div class="a-bar-track"><div class="a-bar-fill" style="width:65%;"></div></div><div style="font-size:6px;color:#3DD68C;margin-left:3px;">₹3.2k</div></div>
+              <div class="a-bar-row"><div class="a-bar-label">Feb</div><div class="a-bar-track"><div class="a-bar-fill" style="width:80%;"></div></div><div style="font-size:6px;color:#3DD68C;margin-left:3px;">₹4.1k</div></div>
+              <div class="a-bar-row"><div class="a-bar-label">Mar</div><div class="a-bar-track"><div class="a-bar-fill" style="width:45%;"></div></div><div style="font-size:6px;color:#3DD68C;margin-left:3px;">₹2.3k</div></div>
+              <div class="a-bar-row"><div class="a-bar-label">Apr</div><div class="a-bar-track"><div class="a-bar-fill" style="width:95%;"></div></div><div style="font-size:6px;color:#3DD68C;margin-left:3px;">₹5.0k</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="prompt-section-title"><span>⌨</span> Vibe Coding Prompt — InsightsTab.kt</div>
+  <div class="prompt-card">
+    <div class="prompt-card-header">
+      <div class="prompt-card-title"><div class="icon">📊</div>Redesign InsightsTab composable</div>
+      <span class="prompt-tag">PRIORITY 4</span>
+    </div>
+    <div class="prompt-body">
+      <div class="prompt-label">Paste this into Claude Code / Cursor</div>
+      <div class="prompt-code"><button class="copy-btn" onclick="copyPrompt(this)">Copy</button><span class="comment">// Refactor: feature/ledger or feature/insights → InsightsTab.kt</span>
+<span class="keyword">Redesign</span> the InsightsTab composable to use a dark-surface layout.
+
+<span class="keyword">Background:</span> Replace the default white scaffold background with a near-black
+surface color (Color(0xFF1C2333)) for the entire InsightsTab. This creates contrast
+for the charts and makes data visualization pop.
+
+<span class="keyword">Tab selector row</span> (Ledger / Insights):
+- Use a Pill-style TabRow: a single Container with rounded-12dp background at
+  surface-variant-level opacity, with the selected tab having a gradient-fill
+  rounded pill (mint → teal) and white text, and unselected tabs showing muted text.
+
+<span class="keyword">ExpensePieChartCard:</span>
+- Card background: slightly lighter dark surface (Color(0xFF243046)), corner 20dp.
+- Render pie chart using the Vico or MPAndroidChart library.
+- Legend below: horizontal row of colored squares + member name + percentage.
+- Use palette: #3DD68C (mint), #0D7A6E (teal), #F5A623 (amber), #6366F1 (indigo) for slices.
+
+<span class="keyword">MonthlyTrendCard:</span>
+- Card background: same dark surface.
+- Horizontal bar chart (prefer Vico HorizontalBar) with bars filled using a
+  LinearGradient brush (mint → teal).
+- Each bar row: Month label (white, muted), bar, ₹ amount label in mint at end.
+- Animate bars in on first composition using animateFloatAsState.
+
+<span class="keyword">Typography:</span>
+- All text on dark surface: title in white, labels in rgba(white, 0.65).
+- Amount values in mint (#3DD68C), negative amounts in amber (#F5A623).
+
+<span class="comment">// Files: feature/ledger/InsightsTab.kt + feature/ledger/InsightsViewModel.kt</span></div>
+      <div class="prompt-meta">
+        <span class="meta-chip file">📁 feature/ledger/InsightsTab.kt</span>
+        <span class="meta-chip priority-med">Medium priority</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ TOUR ════════════════ -->
+<div id="tab-tour" class="section">
+  <div class="section-header">
+    <h2>App Tour Overlay</h2>
+    <p>This is the first impression for new users. Currently: white card, plain dots, purple buttons with no relation to app identity. Needs a complete personality transplant.</p>
+  </div>
+  <div class="comparison-grid">
+    <div class="comp-card before">
+      <div class="comp-card-header"><div class="dot"></div>BEFORE — What you shared</div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-statusbar"><span>02:06</span><span>📶 46%</span></div>
+          <div class="before-screen" style="padding:0;">
+            <div class="b-tour-overlay">
+              <div class="b-tour-modal">
+                <div class="b-tour-title">App Tour</div>
+                <div class="b-tour-step">Step 1 of 5</div>
+                <div class="b-tour-card">
+                  <div class="b-tour-card-title">Groups</div>
+                  <div class="b-tour-card-text">Create or join groups from the drawer and share invites quickly.</div>
+                </div>
+                <div class="b-tour-dots">* o o o o</div>
+                <div class="b-tour-actions">
+                  <div class="b-tour-skip">Skip</div>
+                  <div class="b-tour-next">Next</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="comp-card after">
+      <div class="comp-card-header"><div class="dot"></div>AFTER — Fresh Mint</div>
+      <div class="phone-wrap">
+        <div class="phone">
+          <div class="phone-statusbar" style="background:#0D7A6E;"><span>02:06</span><span>📶 46%</span></div>
+          <div class="after-screen" style="padding:0;">
+            <div class="a-tour-overlay">
+              <div class="a-tour-modal">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                  <div class="a-tour-title">Quick Tour 🌿</div>
+                  <div style="font-size:7px;color:rgba(255,255,255,0.4);">1 of 5</div>
+                </div>
+                <div class="a-tour-step">GROUPS & INVITES</div>
+                <div class="a-tour-card">
+                  <div class="a-tour-card-icon">👥</div>
+                  <div class="a-tour-card-title">Groups</div>
+                  <div class="a-tour-card-text">Create or join groups from the drawer and share invites quickly via a unique link.</div>
+                </div>
+                <div class="a-tour-progress">
+                  <div class="a-tour-dot active"></div>
+                  <div class="a-tour-dot"></div>
+                  <div class="a-tour-dot"></div>
+                  <div class="a-tour-dot"></div>
+                  <div class="a-tour-dot"></div>
+                </div>
+                <div class="a-tour-actions">
+                  <div class="a-tour-skip">Skip</div>
+                  <div class="a-tour-next">Next →</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="prompt-section-title"><span>⌨</span> Vibe Coding Prompt — AppTourOverlay.kt</div>
+  <div class="prompt-card">
+    <div class="prompt-card-header">
+      <div class="prompt-card-title"><div class="icon">🎓</div>Redesign AppTourOverlay composable</div>
+      <span class="prompt-tag">PRIORITY 2</span>
+    </div>
+    <div class="prompt-body">
+      <div class="prompt-label">Paste this into Claude Code / Cursor</div>
+      <div class="prompt-code"><button class="copy-btn" onclick="copyPrompt(this)">Copy</button><span class="comment">// Refactor: feature/auth or app module → AppTourOverlay.kt</span>
+<span class="keyword">Redesign</span> the AppTourOverlay (or AppTourDialog) composable completely.
+
+<span class="keyword">Overlay backdrop:</span>
+- Use a full-screen Box with background Color(0xAA121C28) (semi-transparent dark).
+- Apply Modifier.blur() or BackdropBlur if API >= 31 for glass effect.
+- Animate entry/exit with fadeIn/fadeOut + slideInVertically(from bottom 40px).
+
+<span class="keyword">Dialog card:</span>
+- Background: Brush.linearGradient(listOf(Color(0xFF1C2333), Color(0xFF243046))).
+- Corner radius: 24dp. Border: 1dp at Color(0x333DD68C) (mint at 20% opacity).
+- Drop shadow: elevation 24dp, spotColor = Color(0xFF3DD68C).
+
+<span class="keyword">Header row:</span>
+- Title "Quick Tour 🌿" in titleMedium bold white, left-aligned.
+- Step counter "X of 5" in caption, muted right-aligned.
+
+<span class="keyword">Feature chip label:</span> The step category name (e.g. "GROUPS & INVITES") in
+uppercase, mint color (#3DD68C), labelSmall + letterSpacing 1.5sp. Below the title.
+
+<span class="keyword">Feature card inner block:</span>
+- Background: Color(0x1A3DD68C) (mint 10% tint). Border: 1dp mint 20% opacity. Corner 14dp.
+- Leading icon: A 36dp Container with gradient background (mint → teal), corner 10dp,
+  containing the relevant emoji (👥 Groups, 💸 Expenses, 📊 Insights, 📄 Settlement, ⚙️ Settings).
+- Feature title in bodyLarge bold white.
+- Description text in bodySmall at rgba(white, 0.65).
+
+<span class="keyword">Progress indicator:</span>
+- Replace the asterisk+circle dots with a Row of 5 animated pill indicators.
+- Each pill: 4dp height. Inactive: width 8dp, Color(0x33FFFFFF). Active: width 20dp, Color(0xFF3DD68C).
+- Animate width change with animateDpAsState(spring()).
+
+<span class="keyword">Action row:</span>
+- "Skip" TextButton: bodySmall at rgba(white, 0.45).
+- "Next →" FilledButton: gradient mint → teal, no elevation, corner 12dp, bold text.
+
+<span class="keyword">Tour steps data</span> (use a data class TourStep(icon, label, title, description)):
+- Step 1: 👥, "GROUPS & INVITES", "Groups", "Create or join groups from the drawer and share invites quickly."
+- Step 2: 💸, "ADDING EXPENSES", "Expenses", "Add expenses with equal, exact, percentage, or custom splits."
+- Step 3: 📊, "TRACK & ANALYSE", "Insights", "Visualise spending patterns across members with live charts."
+- Step 4: 📄, "SETTLE UP", "Settlement", "Generate a PDF report and mark the group as settled with one tap."
+- Step 5: ⚙️, "YOUR ACCOUNT", "Settings", "Manage your display name and keep your profile in sync."
+
+<span class="comment">// File: app/src/main/java/com/buddingintents/letsgodutch/ui/AppTourOverlay.kt</span></div>
+      <div class="prompt-meta">
+        <span class="meta-chip file">📁 app/ui/AppTourOverlay.kt</span>
+        <span class="meta-chip priority-high">High priority — first impression</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ THEME ════════════════ -->
+<div id="tab-theme" class="section">
+  <div class="section-header">
+    <h2>Design System — Fresh Mint</h2>
+    <p>The foundation everything else is built on. Get this right first and every screen benefits automatically.</p>
+  </div>
+
+  <div style="font-size:14px; font-weight:700; color:var(--charcoal); margin-bottom:14px;">Color Palette</div>
+  <div class="palette-row">
+    <div class="swatch"><div class="swatch-color" style="background:#3DD68C;"></div><div class="swatch-info"><div class="swatch-name">Mint</div><div class="swatch-hex">#3DD68C</div><div class="swatch-role">Primary / CTA</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#0D7A6E;"></div><div class="swatch-info"><div class="swatch-name">Teal</div><div class="swatch-hex">#0D7A6E</div><div class="swatch-role">Primary Dark</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#1C2333;"></div><div class="swatch-info"><div class="swatch-name">Charcoal</div><div class="swatch-hex">#1C2333</div><div class="swatch-role">Surface Dark</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#F0FDF7;"></div><div class="swatch-info"><div class="swatch-name">Mint Foam</div><div class="swatch-hex">#F0FDF7</div><div class="swatch-role">Background Tint</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#F5A623;"></div><div class="swatch-info"><div class="swatch-name">Amber</div><div class="swatch-hex">#F5A623</div><div class="swatch-role">Warning / Owe</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#FF5C5C;"></div><div class="swatch-info"><div class="swatch-name">Coral</div><div class="swatch-hex">#FF5C5C</div><div class="swatch-role">Error / Delete</div></div></div>
+  </div>
+
+  <div style="font-size:14px; font-weight:700; color:var(--charcoal); margin:20px 0 14px;">Typography — Sora Font</div>
+  <div class="type-sample">
+    <div class="type-sample-label">Display / App Title</div>
+    <div style="font-family:'Sora',sans-serif; font-size:28px; font-weight:800; color:#1C2333; letter-spacing:-0.5px;">Let's Go Dutch</div>
+    <div style="font-family:'DM Mono',monospace; font-size:11px; color:#6B7A8D; margin-top:4px;">Sora 800 · 28sp · letterSpacing -0.5</div>
+  </div>
+  <div class="type-sample">
+    <div class="type-sample-label">Section Header</div>
+    <div style="font-family:'Sora',sans-serif; font-size:18px; font-weight:700; color:#1C2333;">Your Groups</div>
+    <div style="font-family:'DM Mono',monospace; font-size:11px; color:#6B7A8D; margin-top:4px;">Sora 700 · 18sp</div>
+  </div>
+  <div class="type-sample">
+    <div class="type-sample-label">Body / Description</div>
+    <div style="font-family:'Sora',sans-serif; font-size:14px; font-weight:400; color:#6B7A8D; line-height:1.6;">Settle expenses fairly across your group with multiple split modes.</div>
+    <div style="font-family:'DM Mono',monospace; font-size:11px; color:#6B7A8D; margin-top:4px;">Sora 400 · 14sp · lineHeight 1.6</div>
+  </div>
+
+  <div class="prompt-section-title"><span>⌨</span> Foundation Prompt — Theme.kt + Color.kt + Type.kt</div>
+  <div class="prompt-card">
+    <div class="prompt-card-header">
+      <div class="prompt-card-title"><div class="icon">🎨</div>Establish the Fresh Mint Design System</div>
+      <span class="prompt-tag" style="background:#FFF5F5;color:#C53030;">DO THIS FIRST</span>
+    </div>
+    <div class="prompt-body">
+      <div class="prompt-label">Start here — this unlocks all other prompts</div>
+      <div class="prompt-code"><button class="copy-btn" onclick="copyPrompt(this)">Copy</button><span class="comment">// Priority 1: core/designsystem module</span>
+<span class="keyword">Update</span> the design system in core:designsystem to implement the "Fresh Mint" brand.
+
+<span class="keyword">1. Color.kt</span> — Replace all colors with:
+<span class="comment">// Light scheme</span>
+val MintGreen = Color(0xFF3DD68C)
+val MintTeal = Color(0xFF0D7A6E)
+val MintFoam = Color(0xFFF0FDF7)
+val Charcoal = Color(0xFF1C2333)
+val Slate = Color(0xFF3A4460)
+val FogGrey = Color(0xFFF4F7F5)
+val AmberWarn = Color(0xFFF5A623)
+val CoralError = Color(0xFFFF5C5C)
+val MintGreenAlpha20 = Color(0x333DD68C)
+
+<span class="comment">// Semantic mapping for LightColorScheme:</span>
+primary = MintGreen
+onPrimary = Color.White
+primaryContainer = MintFoam
+onPrimaryContainer = MintTeal
+secondary = MintTeal
+onSecondary = Color.White
+background = FogGrey
+onBackground = Charcoal
+surface = Color.White
+onSurface = Charcoal
+surfaceVariant = MintFoam
+error = CoralError
+
+<span class="comment">// DarkColorScheme:</span>
+primary = MintGreen
+onPrimary = Charcoal
+primaryContainer = Color(0xFF0A4A3E)
+background = Color(0xFF121C28)
+surface = Color(0xFF1C2333)
+surfaceVariant = Color(0xFF243046)
+
+<span class="keyword">2. Type.kt</span> — Configure Sora as the app font:
+- Add dependency: implementation("androidx.compose.ui:ui-text-google-fonts")
+- Load Sora via GoogleFont provider.
+- Define fontFamily = FontFamily(Font(GoogleFont("Sora"), weight = FontWeight.Normal), ...)
+- Map to MaterialTheme typography: displayLarge=Sora 800, titleLarge=Sora 700,
+  bodyLarge=Sora 400, labelSmall=Sora 600 + letterSpacing 1.2sp uppercase.
+
+<span class="keyword">3. Shape.kt</span> — Update corner radii:
+- small = RoundedCornerShape(10.dp)   <span class="comment">// chips, small buttons</span>
+- medium = RoundedCornerShape(16.dp)  <span class="comment">// cards, dialogs</span>
+- large = RoundedCornerShape(24.dp)   <span class="comment">// bottom sheets, FABs</span>
+
+<span class="keyword">4. Button.kt</span> — Create a GradientButton composable:
+- Accepts text, onClick, Modifier.
+- Uses Box + background(Brush.horizontalGradient(MintGreen, MintTeal)) + clickable.
+- Adds Modifier.shadow(8.dp, spotColor=MintGreen) for glowing shadow.
+- Text in white, Sora Bold 14sp.
+
+<span class="comment">// Files:
+// core/designsystem/src/main/.../Color.kt
+// core/designsystem/src/main/.../Type.kt
+// core/designsystem/src/main/.../Shape.kt
+// core/designsystem/src/main/.../Theme.kt</span></div>
+      <div class="prompt-meta">
+        <span class="meta-chip file">📁 core/designsystem/Color.kt</span>
+        <span class="meta-chip file">📁 core/designsystem/Type.kt</span>
+        <span class="meta-chip file">📁 core/designsystem/Shape.kt</span>
+        <span class="meta-chip priority-high">🔥 Do this first</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════ ALL PROMPTS ════════════════ -->
+<div id="tab-prompts" class="section">
+  <div class="section-header">
+    <h2>All Vibe Coding Prompts</h2>
+    <p>Complete set in recommended execution order. Start from Priority 1 and work down.</p>
+  </div>
+
+  <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:28px;">
+    <div style="background:#fff; border-radius:12px; padding:14px; border: 1.5px solid var(--border);">
+      <div style="font-size:12px; font-weight:700; color:#C53030; margin-bottom:6px;">🔥 Priority 1 — Foundation</div>
+      <div style="font-size:13px; font-weight:600; color:var(--charcoal); margin-bottom:4px;">Design System</div>
+      <div style="font-size:12px; color:var(--text-muted);">Color.kt, Type.kt, Shape.kt, Theme.kt — must be done before anything else</div>
+    </div>
+    <div style="background:#fff; border-radius:12px; padding:14px; border: 1.5px solid var(--border);">
+      <div style="font-size:12px; font-weight:700; color:#92400E; margin-bottom:6px;">⚡ Priority 2 — First impressions</div>
+      <div style="font-size:13px; font-weight:600; color:var(--charcoal); margin-bottom:4px;">Groups + App Tour</div>
+      <div style="font-size:12px; color:var(--text-muted);">The two screens every user sees immediately after install</div>
+    </div>
+    <div style="background:#fff; border-radius:12px; padding:14px; border: 1.5px solid var(--border);">
+      <div style="font-size:12px; font-weight:700; color:#1E40AF; margin-bottom:6px;">📋 Priority 3 — Core flows</div>
+      <div style="font-size:13px; font-weight:600; color:var(--charcoal); margin-bottom:4px;">Settings + Add Expense</div>
+      <div style="font-size:12px; color:var(--text-muted);">Daily use screens that need polish for retention</div>
+    </div>
+    <div style="background:#fff; border-radius:12px; padding:14px; border: 1.5px solid var(--border);">
+      <div style="font-size:12px; font-weight:700; color:var(--mint-dark); margin-bottom:6px;">✨ Priority 4 — Delight</div>
+      <div style="font-size:13px; font-weight:600; color:var(--charcoal); margin-bottom:4px;">Insights + Settlement</div>
+      <div style="font-size:12px; color:var(--text-muted);">The wow-factor screens that turn users into promoters</div>
+    </div>
+  </div>
+
+  <div class="prompt-section-title"><span>5</span> AddExpense Bottom Sheet Prompt</div>
+  <div class="prompt-card">
+    <div class="prompt-card-header">
+      <div class="prompt-card-title"><div class="icon">💸</div>Redesign AddExpenseBottomSheet</div>
+      <span class="prompt-tag">PRIORITY 3</span>
+    </div>
+    <div class="prompt-body">
+      <div class="prompt-code"><button class="copy-btn" onclick="copyPrompt(this)">Copy</button><span class="comment">// Refactor: feature/expenses → AddExpenseSheet.kt</span>
+<span class="keyword">Redesign</span> the AddExpenseBottomSheet (or AddExpenseDialog) composable.
+
+<span class="keyword">Sheet container:</span>
+- ModalBottomSheet with containerColor = MaterialTheme.colorScheme.surface.
+- Top drag handle: a 36x4dp Divider in mint tint, centered.
+- Corner radius: topStart=24dp, topEnd=24dp.
+
+<span class="keyword">Header:</span>
+- "Add Expense" in titleLarge Sora Bold.
+- Subtitle: "<Group Name>" in bodySmall muted.
+
+<span class="keyword">Form fields:</span>
+- All TextFields: use OutlinedTextField with focusedBorderColor=MintGreen,
+  unfocusedBorderColor=surfaceVariant, corner 12dp.
+- Amount field: prefix "₹" in titleMedium mint bold, large 24sp input text.
+- Description field: standard bodyLarge.
+
+<span class="keyword">Payer selector:</span>
+- Horizontal scrolling LazyRow of member chips.
+- Selected chip: filled mint background, white text, checkmark icon.
+- Unselected chip: outlined, muted border.
+
+<span class="keyword">Split mode tabs:</span>
+- Row of 4 segments (Equal / Exact / % / Custom).
+- Use a custom SegmentedButton with mint active fill.
+
+<span class="keyword">Submit button:</span> Full-width GradientButton (from design system), "Add Expense" label.
+
+<span class="comment">// File: feature/expenses/src/main/java/.../AddExpenseSheet.kt</span></div>
+      <div class="prompt-meta">
+        <span class="meta-chip file">📁 feature/expenses/AddExpenseSheet.kt</span>
+        <span class="meta-chip priority-med">Priority 3</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="prompt-section-title"><span>6</span> Settlement Screen Prompt</div>
+  <div class="prompt-card">
+    <div class="prompt-card-header">
+      <div class="prompt-card-title"><div class="icon">📄</div>Redesign SettlementScreen</div>
+      <span class="prompt-tag">PRIORITY 4</span>
+    </div>
+    <div class="prompt-body">
+      <div class="prompt-code"><button class="copy-btn" onclick="copyPrompt(this)">Copy</button><span class="comment">// Refactor: feature/settlement → SettlementScreen.kt</span>
+<span class="keyword">Redesign</span> the SettlementScreen composable for a high-trust, celebratory feel.
+
+<span class="keyword">Layout:</span>
+1. A hero section at top: animated confetti-style particles (use Compose Canvas to draw
+   small circles/squares animating upward on settlement success) OR a static
+   illustration placeholder with a settlement icon.
+
+2. Settlement summary Card:
+   - Dark surface background (#1C2333), corner 20dp.
+   - Shows total group spend, date range, member count.
+   - A green "Settled ✓" badge if already settled.
+
+3. Member-wise payment rows:
+   - Each row: Avatar (initials) → Arrow → Avatar (initials), with amount in center.
+   - "Raj pays Priya ₹420" layout.
+   - Mint color for amounts.
+
+4. PDF action area:
+   - "Generate PDF" outlined button with PDF icon.
+   - After PDF success → show "Mark as Settled" GradientButton (mint → teal).
+   - Disabled state: greyed out with helper text "Generate PDF first".
+   - Success state: animate a checkmark + "Group settled! Fresh start." message.
+
+<span class="comment">// File: feature/settlement/src/main/java/.../SettlementScreen.kt</span></div>
+      <div class="prompt-meta">
+        <span class="meta-chip file">📁 feature/settlement/SettlementScreen.kt</span>
+        <span class="meta-chip priority-low">Priority 4</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  Built for <strong>Let's Go Dutch</strong> · Budding Intents · Fresh Mint UI Upgrade Reference
+</div>
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function copyPrompt(btn) {
+  const code = btn.parentElement.textContent.replace('Copy', '').trim();
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+</script>
+</body>
+</html>

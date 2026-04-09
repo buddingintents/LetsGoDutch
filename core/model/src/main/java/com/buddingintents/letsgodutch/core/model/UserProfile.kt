@@ -14,4 +14,11 @@ data class UserProfile(
     val deviceId: String = "",
     val deviceModel: String = "",
     val country: String = "",
-)
+    val primaryAuthProvider: String = "",
+    val linkedProviders: List<String> = emptyList(),
+    val upgradedFromAnonymousAtEpochMs: Long? = null,
+    val publicAccountId: String = "",
+) {
+    val displayId: String
+        get() = publicAccountId.trim().ifBlank { userId.take(8).uppercase() }
+}

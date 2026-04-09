@@ -52,10 +52,11 @@ class FirebaseGroupRepository(
                             return@runCatching
                         }
                         val groups = groupIds.mapNotNull { groupId ->
-                            root.child("groups").child(groupId).get().await().toGroupOrNull()
-                                ?.let { group -> refreshInviteIfNeeded(group) }
+                            loadVisibleGroupForUser(
+                                groupId = groupId,
+                                userId = userId,
+                            )
                         }
-                            .filter { it.active }
                             .sortedByDescending { it.createdAtEpochMs }
                         trySend(groups)
                     }.onFailure { throwable ->
@@ -170,7 +171,10 @@ class FirebaseGroupRepository(
             val inviteTarget = resolveInviteTarget(inviteCode = inviteCode)
             val group = inviteTarget.group
             val existingMembers = loadActiveMembers(group.groupId)
-            val alreadyJoined = existingMembers.any { it.userId == userId }
+            val identityKeys = loadUserIdentityKeys(userId)
+            val alreadyJoined = existingMembers.any { member ->
+                member.matchesIdentityKeys(identityKeys)
+            }
             val claimableMembers = if (alreadyJoined) {
                 emptyList()
             } else {
@@ -760,10 +764,58 @@ class FirebaseGroupRepository(
         )
     }
 
+    private suspend fun loadVisibleGroupForUser(groupId: String, userId: String): Group? {
+        val group = root.child("groups").child(groupId).get().await().toGroupOrNull() ?: run {
+            pruneStaleUserGroupReference(
+                userId = userId,
+                groupId = groupId,
+                reason = "missing_group",
+            )
+            return null
+        }
+        if (!group.active) {
+            pruneStaleUserGroupReference(
+                userId = userId,
+                groupId = groupId,
+                reason = "inactive_group",
+            )
+            return null
+        }
+
+        val member = root.child("groupMembers").child(groupId).child(userId).get().await().toMemberOrNull()
+        if (member == null || !member.active) {
+            pruneStaleUserGroupReference(
+                userId = userId,
+                groupId = groupId,
+                reason = "missing_or_inactive_member",
+            )
+            return null
+        }
+
+        return refreshInviteIfNeeded(group)
+    }
+
     private suspend fun loadActiveMembers(groupId: String): List<Member> {
         return root.child("groupMembers").child(groupId).get().await().children
             .mapNotNull { it.toMemberOrNull() }
             .filter { it.active }
+    }
+
+    private suspend fun loadUserIdentityKeys(userId: String): Set<String> {
+        val normalizedUserId = userId.trim()
+        if (normalizedUserId.isBlank()) return emptySet()
+
+        val profileSnapshot = runCatching {
+            root.child("users").child(normalizedUserId).child("profile").get().await()
+        }.getOrNull()
+        val authUser = auth.currentUser?.takeIf { it.uid == normalizedUserId }
+        return linkedSetOf(
+            normalizedUserId,
+            profileSnapshot?.childString("identifier").orEmpty().trim(),
+            profileSnapshot?.childString("deviceId").orEmpty().trim(),
+            authUser?.email.orEmpty().trim().lowercase(),
+            profileSnapshot?.childString("email").orEmpty().trim().lowercase(),
+        ).filter { it.isNotBlank() }.toSet()
     }
 
     private suspend fun refreshInviteIfNeeded(group: Group): Group {
@@ -771,6 +823,22 @@ class FirebaseGroupRepository(
             return group
         }
         return renewInviteInternal(group)
+    }
+
+    private suspend fun pruneStaleUserGroupReference(
+        userId: String,
+        groupId: String,
+        reason: String,
+    ) {
+        runCatching {
+            root.child("userGroups").child(userId).child(groupId).removeValue().await()
+        }.onFailure { throwable ->
+            Log.w(
+                "FirebaseGroupRepo",
+                "Failed to prune stale userGroups link for userId=$userId, groupId=$groupId, reason=$reason.",
+                throwable,
+            )
+        }
     }
 
     private suspend fun renewInviteInternal(group: Group): Group {
@@ -973,4 +1041,13 @@ private fun normalizeInviteCode(raw: String): String {
         .trim()
         .uppercase()
         .filter { it.isLetterOrDigit() }
+}
+
+private fun Member.matchesIdentityKeys(identityKeys: Set<String>): Boolean {
+    if (identityKeys.isEmpty()) return false
+
+    val normalizedEmail = email.trim().lowercase()
+    return userId.trim() in identityKeys ||
+        identifier.trim() in identityKeys ||
+        (normalizedEmail.isNotBlank() && normalizedEmail in identityKeys)
 }

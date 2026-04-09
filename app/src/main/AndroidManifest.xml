@@ -5,6 +5,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 
     <application
@@ -51,6 +52,18 @@
             </intent-filter>
         </service>
 
+        <receiver
+            android:name=".notifications.DailySettlementReminderReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -62,15 +75,33 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Requires assetlinks.json on the server for automatic opening -->
+            <!-- Keep hosts in separate verified filters so one host cannot poison the other on older Android versions. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-                <data android:host="buddingintents.com" />
-                <data android:pathPrefix="/join" />
+                <data
+                    android:scheme="https"
+                    android:host="buddingintents.com"
+                    android:pathPrefix="/join" />
+                <data
+                    android:scheme="http"
+                    android:host="buddingintents.com"
+                    android:pathPrefix="/join" />
+            </intent-filter>
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="www.buddingintents.com"
+                    android:pathPrefix="/join" />
+                <data
+                    android:scheme="http"
+                    android:host="www.buddingintents.com"
+                    android:pathPrefix="/join" />
             </intent-filter>
 
             <!-- 2. Custom Scheme: letsgodutch://join/CODE -->

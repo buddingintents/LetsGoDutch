@@ -21,10 +21,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,7 +46,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -92,7 +97,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        incomingInviteCode.value = intent.extractInviteCode()
+        captureInviteCodeFromIntent(intent)
         requestNotificationsPermissionIfNeeded()
         playStoreInstallAvailable = isInstalledFromGooglePlay()
         if (playStoreInstallAvailable) {
@@ -181,7 +186,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        incomingInviteCode.value = intent.extractInviteCode()
+        captureInviteCodeFromIntent(intent)
     }
 
     override fun onResume() {
@@ -332,6 +337,20 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 5001
+    }
+
+    private fun captureInviteCodeFromIntent(sourceIntent: Intent?) {
+        val extractedInviteCode = sourceIntent.extractInviteCode()
+        incomingInviteCode.value = extractedInviteCode
+        if (!extractedInviteCode.isNullOrBlank()) {
+            setIntent(
+                Intent(sourceIntent).apply {
+                    data = null
+                    removeExtra("inviteCode")
+                    removeExtra("code")
+                },
+            )
+        }
     }
 }
 
@@ -490,6 +509,16 @@ private fun AnimatedSplashOverlay(
         animationSpec = tween(durationMillis = 680, delayMillis = 210, easing = FastOutSlowInEasing),
         label = "splash_name_offset_y",
     )
+    val launchTitleContainerColor = if (isSystemInDarkTheme()) {
+        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.94f)
+    } else {
+        MaterialTheme.colorScheme.secondary.copy(alpha = 0.96f)
+    }
+    val launchTitleTextColor = if (isSystemInDarkTheme()) {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSecondary
+    }
 
     Box(
         modifier = modifier
@@ -506,11 +535,12 @@ private fun AnimatedSplashOverlay(
         contentAlignment = Alignment.Center,
     ) {
         Column(
+            modifier = Modifier.padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
             Image(
-                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                painter = painterResource(id = R.drawable.ic_app_icon_full),
                 contentDescription = stringResource(id = R.string.app_name),
                 modifier = Modifier
                     .size(132.dp)
@@ -520,16 +550,29 @@ private fun AnimatedSplashOverlay(
                         scaleY = logoScale
                     },
             )
-            Spacer(modifier = Modifier.height(14.dp))
-            Text(
-                text = stringResource(id = R.string.app_name),
-                style = MaterialTheme.typography.headlineSmall,
+            Spacer(modifier = Modifier.height(20.dp))
+            Surface(
                 modifier = Modifier
                     .alpha(appNameAlpha)
                     .graphicsLayer {
                         translationY = appNameOffsetY
                     },
-            )
+                shape = MaterialTheme.shapes.extraLarge,
+                color = launchTitleContainerColor,
+                shadowElevation = 14.dp,
+                tonalElevation = 4.dp,
+            ) {
+                Text(
+                    text = stringResource(id = R.string.app_name),
+                    style = MaterialTheme.typography.displaySmall.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.4).sp,
+                    ),
+                    color = launchTitleTextColor,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                )
+            }
         }
     }
 }

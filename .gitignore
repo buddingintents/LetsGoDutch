@@ -1,5 +1,6 @@
 # Gradle
 .gradle/
+.kotlin/
 build/
 */build/
 
@@ -9,6 +10,8 @@ keystore.properties
 
 # IDE
 .idea/
+.vscode/
+.VSCodeCounter/
 *.iml
 
 # OS
@@ -24,8 +27,22 @@ Thumbs.db
 keystore/
 **/keystore/
 
+# Android local tooling / sandbox state
+.android-user/
+.android-user-release/
+.androidprefs/
+.gradle-user/
+.gradle-user-release/
+.sandboxhome/
+
 # Firebase configuration file
 app/google-services.json
+
+# Android build / publishing artifacts
+*.apk
+*.aab
+*.apks
+app/release/
 
 # Secrets / credentials
 .env
@@ -58,3 +75,7 @@ app/google-services.json
 *.crt
 *.cer
 *.der
+
+#Github Token
+Config.toml
+*.toml

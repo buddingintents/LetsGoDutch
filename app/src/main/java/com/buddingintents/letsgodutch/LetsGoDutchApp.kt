@@ -24,12 +24,25 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PersonAddAlt1
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.StarRate
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,10 +52,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,8 +68,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Scaffold
@@ -72,9 +91,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.CustomCredential
@@ -117,6 +144,14 @@ import com.buddingintents.letsgodutch.core.model.SplitType
 import com.buddingintents.letsgodutch.core.model.TodoTask
 import com.buddingintents.letsgodutch.core.model.TodoTaskStatus
 import com.buddingintents.letsgodutch.core.model.UserProfile
+import com.buddingintents.letsgodutch.core.designsystem.component.GradientButton
+import com.buddingintents.letsgodutch.core.designsystem.component.SectionLabel
+import com.buddingintents.letsgodutch.core.designsystem.theme.Charcoal
+import com.buddingintents.letsgodutch.core.designsystem.theme.MintGlow
+import com.buddingintents.letsgodutch.core.designsystem.theme.MintGreen
+import com.buddingintents.letsgodutch.core.designsystem.theme.MintTeal
+import com.buddingintents.letsgodutch.core.designsystem.theme.Night
+import com.buddingintents.letsgodutch.core.designsystem.theme.NightSoft
 import com.buddingintents.letsgodutch.core.designsystem.theme.ThemeMode
 import com.buddingintents.letsgodutch.feature.auth.AuthScreen
 import com.buddingintents.letsgodutch.feature.expenses.AddExpenseDialog
@@ -129,6 +164,13 @@ import com.buddingintents.letsgodutch.notifications.LetsGoDutchMessagingService
 import com.buddingintents.letsgodutch.telemetry.AppTelemetry
 import com.buddingintents.letsgodutch.tour.isAppTourCompleted
 import com.buddingintents.letsgodutch.tour.setAppTourCompleted
+import com.buddingintents.letsgodutch.ui.AppTourOverlay
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.interstitial.InterstitialAd
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.google.android.play.core.review.ReviewManagerFactory
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
@@ -140,6 +182,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
+import androidx.compose.foundation.shape.RoundedCornerShape
 import java.io.File
 import java.io.FileOutputStream
 import java.math.BigDecimal
@@ -153,7 +196,9 @@ import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -175,6 +220,8 @@ fun LetsGoDutchApp(
 ) {
     val context = LocalContext.current
     val repositories = remember(context) { createRepositoryBundle(context.applicationContext) }
+    val reviewPromptStore = remember(context) { AppReviewPromptStore(context.applicationContext) }
+    val settlementHistoryStore = remember(context) { LocalSettlementHistoryStore(context.applicationContext) }
     val realtimeDbConfigIssue = remember(context) { context.firebaseRealtimeDbConfigIssueOrNull() }
     val authRepository = repositories.authRepository
     val groupRepository = repositories.groupRepository
@@ -195,6 +242,8 @@ fun LetsGoDutchApp(
         )
     }
     var isGoogleSignInInProgress by rememberSaveable { mutableStateOf(false) }
+    var isAnonymousSignInInProgress by rememberSaveable { mutableStateOf(false) }
+    var isSavingDisplayName by rememberSaveable { mutableStateOf(false) }
     var pendingInviteCode by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingJoinClaimRequest by remember { mutableStateOf<PendingInviteJoinRequest?>(null) }
     var groupsMessage by rememberSaveable { mutableStateOf("") }
@@ -202,9 +251,50 @@ fun LetsGoDutchApp(
     var showJoinGroupDialog by rememberSaveable { mutableStateOf(false) }
     var isTourCompleted by remember(context) { mutableStateOf(context.isAppTourCompleted()) }
     var showAppTour by rememberSaveable { mutableStateOf(false) }
+    var showAppReviewPrompt by rememberSaveable { mutableStateOf(false) }
+    var isLaunchingReviewPrompt by remember { mutableStateOf(false) }
 
     val incomingInviteCodeValue by (incomingInviteCode?.collectAsState(initial = null)
         ?: remember { mutableStateOf<String?>(null) })
+
+    fun registerHelpfulInteraction(interactionType: String) {
+        AppTelemetry.logEvent("app_interaction_success", mapOf("type" to interactionType))
+        if (showAppReviewPrompt || isLaunchingReviewPrompt) return
+        if (reviewPromptStore.recordInteractionAndShouldPrompt()) {
+            reviewPromptStore.markPromptShown()
+            showAppReviewPrompt = true
+        }
+    }
+
+    fun launchReviewFlow() {
+        if (isLaunchingReviewPrompt) return
+        val activity = context.findActivity()
+        if (activity == null) {
+            reviewPromptStore.markReviewRequested()
+            showAppReviewPrompt = false
+            context.openPlayStoreReviewPage()
+            return
+        }
+
+        isLaunchingReviewPrompt = true
+        val reviewManager = ReviewManagerFactory.create(context)
+        reviewManager.requestReviewFlow()
+            .addOnCompleteListener { requestTask ->
+                if (requestTask.isSuccessful) {
+                    reviewPromptStore.markReviewRequested()
+                    reviewManager.launchReviewFlow(activity, requestTask.result)
+                        .addOnCompleteListener {
+                            isLaunchingReviewPrompt = false
+                            showAppReviewPrompt = false
+                        }
+                } else {
+                    reviewPromptStore.markReviewRequested()
+                    isLaunchingReviewPrompt = false
+                    showAppReviewPrompt = false
+                    context.openPlayStoreReviewPage()
+                }
+            }
+    }
 
     LaunchedEffect(groupsMessage) {
         if (groupsMessage.isNotBlank()) {
@@ -252,6 +342,7 @@ fun LetsGoDutchApp(
                     "claim_mode" to if (claimMemberUserId.isNullOrBlank()) "new_member" else "claimed_placeholder",
                 ),
             )
+            registerHelpfulInteraction("group_join")
             joinedGroup?.groupId?.let { groupId ->
                 navController.navigate(Destination.Group.buildRoute(groupId)) {
                     popUpTo(Destination.Groups.route) { inclusive = false }
@@ -389,17 +480,42 @@ fun LetsGoDutchApp(
             pendingInviteCode = code
             onInviteCodeConsumed?.invoke()
             if (currentUser?.userId.isNullOrBlank()) {
-                authMessage = "Continue with Google or name to join invite: $code"
+                authMessage = "Continue with Google or name to join this invite."
             }
         }
+    }
+
+    val activeSyncState = when {
+        isSavingDisplayName -> BackendSyncUiState(
+            label = "Sync",
+            title = "Syncing your profile",
+            supportingText = "Updating your display name and refreshing it across your groups.",
+            badgeText = "Working",
+        )
+        isAnonymousSignInInProgress -> BackendSyncUiState(
+            label = "Account",
+            title = "Syncing your account",
+            supportingText = "Restoring your groups and preparing your profile from the backend.",
+            badgeText = "Working",
+        )
+        isGoogleSignInInProgress -> BackendSyncUiState(
+            label = "Account",
+            title = "Syncing your account",
+            supportingText = "Linking your identity, merging any existing data, and loading your groups.",
+            badgeText = "Working",
+        )
+        else -> null
     }
 
     LaunchedEffect(currentUser?.userId, pendingInviteCode) {
         val userId = currentUser?.userId.orEmpty()
         val invite = pendingInviteCode.orEmpty()
         if (userId.isBlank() || invite.isBlank()) return@LaunchedEffect
-        pendingInviteCode = null
+        // Clear after processing; clearing first cancels this effect because pendingInviteCode is a key.
         previewInviteJoin(inviteCode = invite, source = JOIN_SOURCE_DEEP_LINK)
+        if (pendingInviteCode == invite) {
+            pendingInviteCode = null
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -415,25 +531,11 @@ fun LetsGoDutchApp(
                     }
                 }
             }
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        title = { },
-                        actions = {
-                            if (onThemeModeChange != null) {
-                                ThemeMenu(onThemeModeChange = onThemeModeChange)
-                            }
-                        },
-                    )
-                },
-            ) { paddingValues ->
-                AuthScreen(
-                modifier = Modifier
-                    .consumeWindowInsets(paddingValues)
-                    .padding(paddingValues),
+            AuthScreen(
+                modifier = Modifier.fillMaxSize(),
                 onGoogleSignInClick = {
-                    if (isGoogleSignInInProgress) {
-                        authMessage = "Google sign-in already in progress. Please wait."
+                    if (isGoogleSignInInProgress || isAnonymousSignInInProgress) {
+                        authMessage = "Account sync already in progress. Please wait."
                         return@AuthScreen
                     }
                     AppTelemetry.logEvent("login_click")
@@ -503,32 +605,36 @@ fun LetsGoDutchApp(
                         authMessage = "Please enter your name."
                         return@AuthScreen
                     }
-                    if (isGoogleSignInInProgress) {
-                        authMessage = "Google sign-in already in progress. Please wait."
+                    if (isGoogleSignInInProgress || isAnonymousSignInInProgress) {
+                        authMessage = "Account sync already in progress. Please wait."
                         return@AuthScreen
                     }
                     AppTelemetry.logEvent("login_click", mapOf("method" to "anonymous"))
                     scope.launch {
-                        val resultSignIn = authRepository.signInAnonymously(displayName)
-                        if (resultSignIn.isSuccess) {
-                            AppTelemetry.logEvent("login_success", mapOf("path" to "anonymous"))
-                            navController.navigate(Destination.Groups.route) {
-                                popUpTo(Destination.Auth.route) { inclusive = true }
+                        isAnonymousSignInInProgress = true
+                        try {
+                            val resultSignIn = authRepository.signInAnonymously(displayName)
+                            if (resultSignIn.isSuccess) {
+                                AppTelemetry.logEvent("login_success", mapOf("path" to "anonymous"))
+                                navController.navigate(Destination.Groups.route) {
+                                    popUpTo(Destination.Auth.route) { inclusive = true }
+                                }
+                            } else {
+                                authMessage = resultSignIn.exceptionOrNull()?.message
+                                    ?: "Unable to continue with name."
+                                resultSignIn.exceptionOrNull()?.let { error ->
+                                    AppTelemetry.recordNonFatal(error, tags = mapOf("op" to "login_anonymous"))
+                                }
                             }
-                        } else {
-                            authMessage = resultSignIn.exceptionOrNull()?.message
-                                ?: "Unable to continue with name."
-                            resultSignIn.exceptionOrNull()?.let { error ->
-                                AppTelemetry.recordNonFatal(error, tags = mapOf("op" to "login_anonymous"))
-                            }
+                        } finally {
+                            isAnonymousSignInInProgress = false
                         }
                     }
                 },
                 message = authMessage,
                 anonymousNameHints = anonymousNameHints,
-                logoResId = R.mipmap.ic_launcher_foreground,
+                logoResId = R.drawable.ic_app_icon_full,
             )
-            }
         }
 
         composable(route = Destination.Todo.route) {
@@ -861,7 +967,6 @@ fun LetsGoDutchApp(
         }
 
         composable(route = Destination.Settings.route) {
-            var isSavingDisplayName by rememberSaveable { mutableStateOf(false) }
             AppScaffoldWithDrawer(
                 currentUser = currentUser,
                 navController = navController,
@@ -896,6 +1001,9 @@ fun LetsGoDutchApp(
             ) {
                 SettingsScreen(
                     currentDisplayName = currentUser.toFriendlyDisplayName(),
+                    currentAccountId = currentUser?.displayId.orEmpty(),
+                    currentAccountSummary = currentUser.toSettingsAccountSummary(),
+                    currentAccountEmail = currentUser?.email.orEmpty(),
                     isSavingDisplayName = isSavingDisplayName,
                     appUpdateSummary = appUpdateSummary,
                     isCheckingForAppUpdate = isCheckingForAppUpdate,
@@ -948,6 +1056,27 @@ fun LetsGoDutchApp(
                 }
             }
             val groups by groupsFlow.collectAsState(initial = emptyList())
+            val groupNetPaiseByIdFlow: Flow<Map<String, Long>> = remember(
+                userId,
+                groups,
+                realtimeDbConfigIssue,
+            ) {
+                if (userId.isBlank() || groups.isEmpty() || !realtimeDbConfigIssue.isNullOrBlank()) {
+                    flowOf(emptyMap())
+                } else {
+                    combine(
+                        groups.map { group ->
+                            expenseRepository.observeBalances(group.groupId)
+                                .map { balances ->
+                                    group.groupId to (balances.firstOrNull { it.userId == userId }?.netPaise ?: 0L)
+                                }
+                        },
+                    ) { groupBalances ->
+                        groupBalances.associate { it }
+                    }
+                }
+            }
+            val groupNetPaiseById by groupNetPaiseByIdFlow.collectAsState(initial = emptyMap())
 
             AppScaffoldWithDrawer(
                 currentUser = currentUser,
@@ -983,6 +1112,10 @@ fun LetsGoDutchApp(
             ) {
             GroupsListScreen(
                 groups = groups,
+                currentUserDisplayName = currentUser.toFriendlyDisplayName(),
+                currentUserId = userId,
+                groupNetPaiseById = groupNetPaiseById,
+                appIconResId = R.drawable.ic_app_icon_full,
                 onOpenGroup = { groupId ->
                     navController.navigate(Destination.Group.buildRoute(groupId)) {
                         popUpTo(Destination.Groups.route) { inclusive = false }
@@ -996,6 +1129,15 @@ fun LetsGoDutchApp(
                         context.shareJoinLink(group = group)
                     }
                 },
+                onCopyGroupInvite = { group ->
+                    context.copyToClipboard(
+                        label = "Invite code",
+                        text = group.inviteCode.toNormalizedInviteCode(),
+                    )
+                    groupsMessage = "Invite code copied."
+                },
+                onCreateGroupClick = { showCreateGroupDialog = true },
+                onJoinGroupClick = { showJoinGroupDialog = true },
                 modifier = Modifier.fillMaxSize(),
             )
             }
@@ -1042,12 +1184,17 @@ fun LetsGoDutchApp(
             var showManageMembersDialog by rememberSaveable { mutableStateOf(false) }
             var showMembersListDialog by rememberSaveable { mutableStateOf(false) }
             var showGroupDetailsDialog by rememberSaveable { mutableStateOf(false) }
+            var showRecentSettlementsDialog by rememberSaveable { mutableStateOf(false) }
             var showSettlementInfoDialog by rememberSaveable { mutableStateOf(false) }
             var expensePendingDelete by remember { mutableStateOf<Expense?>(null) }
             var memberPendingRemoval by remember { mutableStateOf<Member?>(null) }
             var memberPendingEdit by remember { mutableStateOf<Member?>(null) }
+            var recentSettlementPendingDelete by remember { mutableStateOf<RecentSettlementRecord?>(null) }
             var selectedTab by remember { mutableIntStateOf(0) }
             var infoMessage by remember { mutableStateOf("") }
+            var recentSettlements by remember(groupId) {
+                mutableStateOf(settlementHistoryStore.readSettlements(groupId))
+            }
             val groupsForTitle by groupRepository.observeGroupsForUser(currentUserId)
                 .collectAsState(initial = emptyList())
             val activeCurrentMember = members.firstOrNull { it.userId == currentUserId && it.active }
@@ -1056,8 +1203,11 @@ fun LetsGoDutchApp(
             val hasExpenses = expenses.isNotEmpty()
             val groupSummary = groupsForTitle.firstOrNull { it.groupId == groupId }
             val mainOwnerUserId = groupSummary?.ownerUserId.orEmpty()
-            val groupTitle = groupSummary?.name
-                ?.let { "Group: $it" } ?: "Group: $groupId"
+            val groupTitle = groupSummary?.name ?: groupId
+
+            fun refreshRecentSettlements() {
+                recentSettlements = settlementHistoryStore.readSettlements(groupId)
+            }
 
             LaunchedEffect(infoMessage) {
                 if (infoMessage.isNotBlank()) {
@@ -1145,6 +1295,7 @@ fun LetsGoDutchApp(
                                         "split_type" to draft.splitType.name.lowercase(),
                                     ),
                                 )
+                                registerHelpfulInteraction("expense_add")
                             } else {
                                 result.exceptionOrNull()?.let { error ->
                                     AppTelemetry.recordNonFatal(error, tags = mapOf("op" to "expense_add"))
@@ -1198,6 +1349,13 @@ fun LetsGoDutchApp(
                     group = detailsGroup,
                     isOwner = isOwner,
                     onDismiss = { showGroupDetailsDialog = false },
+                    onCopyInvite = {
+                        context.copyToClipboard(
+                            label = "Invite code",
+                            text = detailsGroup.inviteCode.toNormalizedInviteCode(),
+                        )
+                        infoMessage = "Invite code copied."
+                    },
                     onSave = { description, autoRenewInvite, selectAllMembersByDefaultForExpenses ->
                         if (!isOwner) {
                             infoMessage = "Only an owner can update group details."
@@ -1214,6 +1372,7 @@ fun LetsGoDutchApp(
                             if (updateResult.isSuccess) {
                                 infoMessage = "Group details updated."
                                 showGroupDetailsDialog = false
+                                registerHelpfulInteraction("group_details_update")
                             } else {
                                 infoMessage = updateResult.exceptionOrNull()?.message
                                     ?: "Unable to update group details."
@@ -1326,6 +1485,7 @@ fun LetsGoDutchApp(
                                         "new_role" to if (makeOwner) "owner" else "member",
                                     ),
                                 )
+                                registerHelpfulInteraction("member_role_update")
                             } else {
                                 infoMessage = updateRoleResult.exceptionOrNull()?.message
                                     ?: "Unable to update member role."
@@ -1350,6 +1510,25 @@ fun LetsGoDutchApp(
                 )
             }
 
+            if (showRecentSettlementsDialog) {
+                RecentSettlementsDialog(
+                    groupName = groupTitle,
+                    settlements = recentSettlements,
+                    onDismiss = { showRecentSettlementsDialog = false },
+                    onOpenPdf = { settlement ->
+                        if (settlement.pdfExists) {
+                            context.openSettlementPdf(settlement.pdfPath)
+                        } else {
+                            infoMessage = "Saved PDF is missing from this device."
+                            refreshRecentSettlements()
+                        }
+                    },
+                    onDeleteEntry = { settlement ->
+                        recentSettlementPendingDelete = settlement
+                    },
+                )
+            }
+
             if (showAddMemberDialog) {
                 AddMemberDialog(
                     onDismiss = { showAddMemberDialog = false },
@@ -1371,6 +1550,7 @@ fun LetsGoDutchApp(
                                     "member_add_manual_success",
                                     mapOf("group_id" to groupId),
                                 )
+                                registerHelpfulInteraction("member_add_manual")
                             } else {
                                 infoMessage = addResult.exceptionOrNull()?.message
                                     ?: "Unable to add member."
@@ -1407,6 +1587,7 @@ fun LetsGoDutchApp(
                                     "member_edit_manual_success",
                                     mapOf("group_id" to groupId),
                                 )
+                                registerHelpfulInteraction("member_edit_manual")
                             } else {
                                 infoMessage = updateResult.exceptionOrNull()?.message ?: "Unable to update member."
                                 updateResult.exceptionOrNull()?.let { error ->
@@ -1459,6 +1640,44 @@ fun LetsGoDutchApp(
                     },
                     dismissButton = {
                         TextButton(onClick = { memberPendingRemoval = null }) {
+                            Text("Cancel")
+                        }
+                    },
+                )
+            }
+
+            val settlementToDelete = recentSettlementPendingDelete
+            if (settlementToDelete != null) {
+                AlertDialog(
+                    onDismissRequest = { recentSettlementPendingDelete = null },
+                    title = { Text("Delete Settlement PDF?") },
+                    text = {
+                        Text(
+                            "Delete the saved settlement entry from ${settlementToDelete.settledAtEpochMs.toGroupDetailsDateTime()}? " +
+                                "The PDF will be removed permanently from this device.",
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                recentSettlementPendingDelete = null
+                                val deleted = settlementHistoryStore.deleteSettlement(
+                                    groupId = groupId,
+                                    entryId = settlementToDelete.entryId,
+                                )
+                                refreshRecentSettlements()
+                                infoMessage = if (deleted) {
+                                    "Settlement entry deleted."
+                                } else {
+                                    "Unable to delete settlement entry."
+                                }
+                            },
+                        ) {
+                            Text("Delete")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { recentSettlementPendingDelete = null }) {
                             Text("Cancel")
                         }
                     },
@@ -1555,7 +1774,7 @@ fun LetsGoDutchApp(
                 topBarActions = {
                     IconButton(onClick = { showSettlementInfoDialog = true }) {
                         Icon(
-                            imageVector = Icons.Default.HelpOutline,
+                            imageVector = Icons.AutoMirrored.Filled.HelpOutline,
                             contentDescription = "Settlement info",
                         )
                     }
@@ -1563,12 +1782,17 @@ fun LetsGoDutchApp(
                         isOwner = isOwner,
                         canAddMember = isGroupMember,
                         canViewMembers = isGroupMember,
+                        canViewRecentSettlements = isOwner,
                         hasExpenses = hasExpenses,
                         onMarkAsSettledClick = onMarkAsSettledClick,
                         onAddMemberClick = { showAddMemberDialog = true },
                         onManageMembersClick = { showManageMembersDialog = true },
                         onGroupDetailsClick = { showGroupDetailsDialog = true },
                         onViewMembersClick = { showMembersListDialog = true },
+                        onRecentSettlementsClick = {
+                            refreshRecentSettlements()
+                            showRecentSettlementsDialog = true
+                        },
                         onDeleteGroupClick = { showDeleteGroupDialog = true },
                     )
                 },
@@ -1616,6 +1840,7 @@ fun LetsGoDutchApp(
                         else -> InsightsScreen(
                             balances = balances,
                             memberNameById = memberNameById,
+                            totalExpensePaise = expenses.sumOf { it.amountPaise },
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -1660,11 +1885,186 @@ fun LetsGoDutchApp(
 
             var isFinalizingSettlement by rememberSaveable { mutableStateOf(false) }
             var infoMessage by remember { mutableStateOf("") }
+            var settlementInterstitialAd by remember(groupId) { mutableStateOf<InterstitialAd?>(null) }
+            var isSettlementAdLoading by remember(groupId) { mutableStateOf(false) }
+
+            fun loadSettlementInterstitial() {
+                if (isSettlementAdLoading || settlementInterstitialAd != null) return
+                isSettlementAdLoading = true
+                InterstitialAd.load(
+                    context,
+                    SETTLEMENT_INTERSTITIAL_AD_UNIT_ID,
+                    AdRequest.Builder().build(),
+                    object : InterstitialAdLoadCallback() {
+                        override fun onAdLoaded(interstitialAd: InterstitialAd) {
+                            isSettlementAdLoading = false
+                            settlementInterstitialAd = interstitialAd
+                        }
+
+                        override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                            isSettlementAdLoading = false
+                            settlementInterstitialAd = null
+                        }
+                    },
+                )
+            }
+
+            fun startSettlementFinalization() {
+                if (isFinalizingSettlement) return
+
+                isFinalizingSettlement = true
+                scope.launch {
+                    val pdfPath = settlementRepository.generateSettlementPdf(
+                        groupId = groupId,
+                        actorUserId = currentUserId,
+                    ).getOrElse { error ->
+                        isFinalizingSettlement = false
+                        infoMessage = error.toActionableMessage(
+                            "Unable to generate settlement PDF.",
+                        )
+                        AppTelemetry.logEvent(
+                            "pdf_generate_fail",
+                            mapOf(
+                                "group_id" to groupId,
+                                "entry_point" to "settlement_preview",
+                                "reason" to error.message.orEmpty().ifBlank { "unknown" },
+                            ),
+                        )
+                        AppTelemetry.recordNonFatal(
+                            error,
+                            tags = mapOf("op" to "settlement_pdf_generate"),
+                        )
+                        return@launch
+                    }
+
+                    val dispatchResult = settlementRepository.dispatchSettlementPdfToMembers(
+                        groupId = groupId,
+                        actorUserId = currentUserId,
+                        pdfPath = pdfPath,
+                    )
+                    if (dispatchResult.isFailure) {
+                        isFinalizingSettlement = false
+                        val error = dispatchResult.exceptionOrNull()
+                        infoMessage = error?.toActionableMessage(
+                            "Unable to dispatch settlement PDF.",
+                        ) ?: "Unable to dispatch settlement PDF."
+                        AppTelemetry.logEvent(
+                            "dispatch_fail",
+                            mapOf(
+                                "group_id" to groupId,
+                                "entry_point" to "settlement_preview",
+                                "reason" to error?.message.orEmpty().ifBlank { "unknown" },
+                            ),
+                        )
+                        error?.let {
+                            AppTelemetry.recordNonFatal(
+                                throwable = it,
+                                tags = mapOf("op" to "settlement_pdf_dispatch"),
+                            )
+                        }
+                        return@launch
+                    }
+
+                    val settleResult = settlementRepository.markGroupSettled(
+                        groupId = groupId,
+                        actorUserId = currentUserId,
+                    )
+                    if (settleResult.isFailure) {
+                        isFinalizingSettlement = false
+                        val error = settleResult.exceptionOrNull()
+                        infoMessage = error?.toActionableMessage(
+                            "Unable to complete settlement.",
+                        ) ?: "Unable to complete settlement."
+                        error?.let {
+                            AppTelemetry.recordNonFatal(
+                                throwable = it,
+                                tags = mapOf("op" to "settlement_mark_group"),
+                            )
+                        }
+                        return@launch
+                    }
+
+                    val settledAtEpochMs = System.currentTimeMillis()
+                    settlementHistoryStore.addSettlement(
+                        RecentSettlementRecord(
+                            entryId = "settlement_$settledAtEpochMs",
+                            groupId = groupId,
+                            groupName = group?.name ?: groupId,
+                            settledAtEpochMs = settledAtEpochMs,
+                            pdfPath = pdfPath,
+                        ),
+                    )
+                    context.shareSettlementPdf(pdfPath)
+                    AppTelemetry.logEvent(
+                        "settlement_complete_success",
+                        mapOf(
+                            "group_id" to groupId,
+                            "entry_point" to "settlement_preview",
+                        ),
+                    )
+                    registerHelpfulInteraction("settlement_complete")
+                    groupsMessage = "Settlement done. PDF generated and shared."
+                    isFinalizingSettlement = false
+                    navController.popBackStack()
+                }
+            }
+
+            fun beginSettlementFlow() {
+                if (!isOwner) {
+                    infoMessage = "Only an owner can mark settlement."
+                    return
+                }
+                if (expenses.isEmpty()) {
+                    infoMessage = "No expenses to settle."
+                    AppTelemetry.logEvent(
+                        "no_expense_settle_attempt",
+                        mapOf(
+                            "group_id" to groupId,
+                            "entry_point" to "settlement_preview",
+                        ),
+                    )
+                    return
+                }
+                if (isFinalizingSettlement) return
+
+                val loadedAd = settlementInterstitialAd
+                val hostActivity = context.findActivity()
+                if (loadedAd == null || hostActivity == null) {
+                    startSettlementFinalization()
+                    loadSettlementInterstitial()
+                    return
+                }
+
+                settlementInterstitialAd = null
+                loadedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
+                    override fun onAdDismissedFullScreenContent() {
+                        startSettlementFinalization()
+                        loadSettlementInterstitial()
+                    }
+
+                    override fun onAdFailedToShowFullScreenContent(adError: com.google.android.gms.ads.AdError) {
+                        startSettlementFinalization()
+                        loadSettlementInterstitial()
+                    }
+                }
+                loadedAd.show(hostActivity)
+            }
 
             LaunchedEffect(infoMessage) {
                 if (infoMessage.isNotBlank()) {
                     context.showShortToast(infoMessage)
                     infoMessage = ""
+                }
+            }
+
+            LaunchedEffect(groupId) {
+                loadSettlementInterstitial()
+            }
+
+            DisposableEffect(groupId) {
+                onDispose {
+                    settlementInterstitialAd = null
+                    isSettlementAdLoading = false
                 }
             }
 
@@ -1696,7 +2096,7 @@ fun LetsGoDutchApp(
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text("PDF Summary")
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
-                                Text("Group: ${group?.name ?: groupId}")
+                                Text(group?.name ?: groupId)
                                 Text("Active members: $activeMembersCount")
                                 Text("Expense entries: ${expenses.size}")
                                 Text("Total amount: ${totalExpensePaise.toRupeeDisplay()}")
@@ -1752,109 +2152,7 @@ fun LetsGoDutchApp(
                                 }
 
                                 Button(
-                                    onClick = {
-                                        if (!isOwner) {
-                                            infoMessage = "Only an owner can mark settlement."
-                                            return@Button
-                                        }
-                                        if (expenses.isEmpty()) {
-                                            infoMessage = "No expenses to settle."
-                                            AppTelemetry.logEvent(
-                                                "no_expense_settle_attempt",
-                                                mapOf(
-                                                    "group_id" to groupId,
-                                                    "entry_point" to "settlement_preview",
-                                                ),
-                                            )
-                                            return@Button
-                                        }
-                                        if (isFinalizingSettlement) return@Button
-
-                                        isFinalizingSettlement = true
-                                        scope.launch {
-                                            val pdfPath = settlementRepository.generateSettlementPdf(
-                                                groupId = groupId,
-                                                actorUserId = currentUserId,
-                                            ).getOrElse { error ->
-                                                isFinalizingSettlement = false
-                                                infoMessage = error.toActionableMessage(
-                                                    "Unable to generate settlement PDF.",
-                                                )
-                                                AppTelemetry.logEvent(
-                                                    "pdf_generate_fail",
-                                                    mapOf(
-                                                        "group_id" to groupId,
-                                                        "entry_point" to "settlement_preview",
-                                                        "reason" to error.message.orEmpty().ifBlank { "unknown" },
-                                                    ),
-                                                )
-                                                AppTelemetry.recordNonFatal(
-                                                    error,
-                                                    tags = mapOf("op" to "settlement_pdf_generate"),
-                                                )
-                                                return@launch
-                                            }
-
-                                            val dispatchResult = settlementRepository.dispatchSettlementPdfToMembers(
-                                                groupId = groupId,
-                                                actorUserId = currentUserId,
-                                                pdfPath = pdfPath,
-                                            )
-                                            if (dispatchResult.isFailure) {
-                                                isFinalizingSettlement = false
-                                                val error = dispatchResult.exceptionOrNull()
-                                                infoMessage = error?.toActionableMessage(
-                                                    "Unable to dispatch settlement PDF.",
-                                                ) ?: "Unable to dispatch settlement PDF."
-                                                AppTelemetry.logEvent(
-                                                    "dispatch_fail",
-                                                    mapOf(
-                                                        "group_id" to groupId,
-                                                        "entry_point" to "settlement_preview",
-                                                        "reason" to error?.message.orEmpty().ifBlank { "unknown" },
-                                                    ),
-                                                )
-                                                error?.let {
-                                                    AppTelemetry.recordNonFatal(
-                                                        throwable = it,
-                                                        tags = mapOf("op" to "settlement_pdf_dispatch"),
-                                                    )
-                                                }
-                                                return@launch
-                                            }
-
-                                            val settleResult = settlementRepository.markGroupSettled(
-                                                groupId = groupId,
-                                                actorUserId = currentUserId,
-                                            )
-                                            if (settleResult.isFailure) {
-                                                isFinalizingSettlement = false
-                                                val error = settleResult.exceptionOrNull()
-                                                infoMessage = error?.toActionableMessage(
-                                                    "Unable to complete settlement.",
-                                                ) ?: "Unable to complete settlement."
-                                                error?.let {
-                                                    AppTelemetry.recordNonFatal(
-                                                        throwable = it,
-                                                        tags = mapOf("op" to "settlement_mark_group"),
-                                                    )
-                                                }
-                                                return@launch
-                                            }
-
-                                            context.shareSettlementPdf(pdfPath)
-                                            AppTelemetry.logEvent(
-                                                "settlement_complete_success",
-                                                mapOf(
-                                                    "group_id" to groupId,
-                                                    "entry_point" to "settlement_preview",
-                                                ),
-                                            )
-                                            groupsMessage = "Settlement done. PDF generated and shared."
-                                            isFinalizingSettlement = false
-                                            navController.popBackStack()
-                                        }
-                                    },
+                                    onClick = { beginSettlementFlow() },
                                     enabled = !isFinalizingSettlement && isOwner && expenses.isNotEmpty(),
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1874,6 +2172,15 @@ fun LetsGoDutchApp(
                                 }
                             }
                         }
+                    }
+
+                    item {
+                        LetsGoDutchBannerAd(
+                            productionAdUnitId = SETTLEMENT_PREVIEW_BANNER_AD_UNIT_ID,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp),
+                        )
                     }
                 }
             }
@@ -1905,6 +2212,7 @@ fun LetsGoDutchApp(
                                     "group_create_success",
                                     mapOf("group_id" to (resultCreate.getOrNull()?.groupId ?: "unknown")),
                                 )
+                                registerHelpfulInteraction("group_create")
                                 resultCreate.getOrNull()?.groupId?.let { groupId ->
                                     navController.navigate(Destination.Group.buildRoute(groupId)) {
                                         popUpTo(Destination.Groups.route) { inclusive = false }
@@ -1972,13 +2280,25 @@ fun LetsGoDutchApp(
         }
 
         if (showAppTour && !currentUser?.userId.isNullOrBlank()) {
-            AppTourDialog(
+            AppTourOverlay(
                 onDismiss = {
                     context.setAppTourCompleted(true)
                     isTourCompleted = true
                     showAppTour = false
                 },
             )
+        }
+
+        if (showAppReviewPrompt) {
+            AppReviewPromptDialog(
+                isLaunching = isLaunchingReviewPrompt,
+                onDismiss = { showAppReviewPrompt = false },
+                onReviewClick = { launchReviewFlow() },
+            )
+        }
+
+        activeSyncState?.let { syncState ->
+            BackendSyncDialog(state = syncState)
         }
     }
 }
@@ -1990,6 +2310,359 @@ private data class CreateGroupDraft(
     val selectAllMembersByDefaultForExpenses: Boolean,
 )
 
+private data class BackendSyncUiState(
+    val label: String,
+    val title: String,
+    val supportingText: String,
+    val badgeText: String,
+)
+
+@Composable
+private fun BackendSyncDialog(
+    state: BackendSyncUiState,
+) {
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(ComposeColor(0xB3121C28))
+                .padding(horizontal = 20.dp, vertical = 28.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 520.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = ComposeColor.Transparent,
+                border = BorderStroke(1.dp, MintGlow),
+                shadowElevation = 24.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Night, NightSoft, Charcoal),
+                            ),
+                        )
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            SectionLabel(text = state.label)
+                            Text(
+                                text = state.title,
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = ComposeColor.White,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = state.supportingText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = ComposeColor.White.copy(alpha = 0.74f),
+                            )
+                        }
+                        LetsGoDutchDialogPill(
+                            text = state.badgeText,
+                            containerColor = MintGlow,
+                            contentColor = MintGreen,
+                        )
+                    }
+
+                    LetsGoDutchRevampCard {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CircularProgressIndicator(
+                                color = MintGreen,
+                                trackColor = ComposeColor.White.copy(alpha = 0.12f),
+                            )
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(
+                                    text = "Please wait while we sync the latest data.",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = ComposeColor.White,
+                                )
+                                Text(
+                                    text = "This usually takes a few seconds.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = ComposeColor.White.copy(alpha = 0.68f),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LetsGoDutchRevampDialog(
+    label: String,
+    title: String,
+    supportingText: String,
+    onDismissRequest: () -> Unit,
+    badgeText: String? = null,
+    icon: ImageVector? = null,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+    actions: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val configuration = LocalConfiguration.current
+    val maxDialogHeight = configuration.screenHeightDp.dp * 0.88f
+
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(ComposeColor(0xB3121C28))
+                .padding(horizontal = 20.dp, vertical = 28.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 560.dp)
+                    .heightIn(max = maxDialogHeight),
+                shape = RoundedCornerShape(28.dp),
+                color = ComposeColor.Transparent,
+                border = BorderStroke(1.dp, MintGlow),
+                shadowElevation = 24.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Night, NightSoft, Charcoal),
+                            ),
+                        )
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            SectionLabel(text = label)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (icon != null) {
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MintGlow,
+                                        border = BorderStroke(1.dp, ComposeColor.White.copy(alpha = 0.10f)),
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = MintGreen,
+                                            modifier = Modifier.padding(10.dp),
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = ComposeColor.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            Text(
+                                text = supportingText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = ComposeColor.White.copy(alpha = 0.74f),
+                            )
+                        }
+                        if (!badgeText.isNullOrBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = ComposeColor.White.copy(alpha = 0.10f),
+                                border = BorderStroke(1.dp, ComposeColor.White.copy(alpha = 0.12f)),
+                            ) {
+                                Text(
+                                    text = badgeText,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MintGreen,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                )
+                            }
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        content = content,
+                    )
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        content = actions,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LetsGoDutchRevampCard(
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = ComposeColor.White.copy(alpha = 0.05f),
+        border = BorderStroke(1.dp, ComposeColor.White.copy(alpha = 0.10f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun LetsGoDutchDialogLabelValueRow(
+    label: String,
+    value: String,
+    valueColor: ComposeColor = ComposeColor.White,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = ComposeColor.White.copy(alpha = 0.62f),
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = valueColor,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun LetsGoDutchDialogPill(
+    text: String,
+    containerColor: ComposeColor,
+    contentColor: ComposeColor,
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = containerColor,
+        border = BorderStroke(1.dp, contentColor.copy(alpha = 0.24f)),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = contentColor,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        )
+    }
+}
+
+@Composable
+private fun revampDialogTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = ComposeColor.Transparent,
+    unfocusedContainerColor = ComposeColor.Transparent,
+    focusedTextColor = ComposeColor.White,
+    unfocusedTextColor = ComposeColor.White,
+    focusedBorderColor = MintGreen,
+    unfocusedBorderColor = ComposeColor.White.copy(alpha = 0.22f),
+    cursorColor = MintGreen,
+    focusedLabelColor = MintGreen,
+    unfocusedLabelColor = ComposeColor.White.copy(alpha = 0.72f),
+)
+
+@Composable
+private fun LetsGoDutchDialogSettingRow(
+    checked: Boolean,
+    title: String,
+    supportingText: String,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) },
+        shape = RoundedCornerShape(18.dp),
+        color = ComposeColor.White.copy(alpha = 0.04f),
+        border = BorderStroke(1.dp, ComposeColor.White.copy(alpha = 0.08f)),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = ComposeColor.White,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = supportingText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ComposeColor.White.copy(alpha = 0.72f),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun CreateGroupDialog(
     onDismiss: () -> Unit,
@@ -1999,90 +2672,113 @@ private fun CreateGroupDialog(
     var groupDescription by rememberSaveable { mutableStateOf("") }
     var autoRenewInvite by rememberSaveable { mutableStateOf(true) }
     var selectAllMembersByDefaultForExpenses by rememberSaveable { mutableStateOf(false) }
-    AlertDialog(
+    val normalizedName = groupName.trim()
+
+    LetsGoDutchRevampDialog(
+        label = "Groups",
+        title = "Create Group",
+        supportingText = "Set up a shared space for a trip, flat, or event. You can adjust invite and expense defaults now or later.",
         onDismissRequest = onDismiss,
-        title = { Text("Create Group") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = groupName,
-                    onValueChange = { groupName = it },
-                    label = { Text("Group name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = groupDescription,
-                    onValueChange = { groupDescription = it },
-                    label = { Text("Group description") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    maxLines = 3,
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { autoRenewInvite = !autoRenewInvite },
-                ) {
-                    Checkbox(
-                        checked = autoRenewInvite,
-                        onCheckedChange = { autoRenewInvite = it },
-                    )
+        badgeText = "New",
+        icon = Icons.Default.Add,
+        content = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.48f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                LetsGoDutchRevampCard {
+                    SectionLabel(text = "Basics")
                     Text(
-                        text = "Auto-renew the invite code after expiry",
-                        modifier = Modifier.padding(top = 12.dp, start = 8.dp),
+                        text = "Choose a clear name so members can recognize this group in invites, balances, and settlements.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ComposeColor.White.copy(alpha = 0.72f),
+                    )
+                    OutlinedTextField(
+                        value = groupName,
+                        onValueChange = { groupName = it },
+                        label = { Text("Group name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = revampDialogTextFieldColors(),
+                    )
+                    OutlinedTextField(
+                        value = groupDescription,
+                        onValueChange = { groupDescription = it },
+                        label = { Text("Group description") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        maxLines = 4,
+                        colors = revampDialogTextFieldColors(),
                     )
                 }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            selectAllMembersByDefaultForExpenses = !selectAllMembersByDefaultForExpenses
-                        },
-                ) {
-                    Checkbox(
+
+                LetsGoDutchRevampCard {
+                    SectionLabel(text = "Invite Access")
+                    LetsGoDutchDialogSettingRow(
+                        checked = autoRenewInvite,
+                        title = "Auto-renew invite code",
+                        supportingText = "Keeps a usable code ready after the current invite expires.",
+                        onCheckedChange = { autoRenewInvite = it },
+                    )
+                }
+
+                LetsGoDutchRevampCard {
+                    SectionLabel(text = "Expense Defaults")
+                    LetsGoDutchDialogSettingRow(
                         checked = selectAllMembersByDefaultForExpenses,
+                        title = "Select all members by default",
+                        supportingText = "New expenses start with the whole group selected as participants.",
                         onCheckedChange = { selectAllMembersByDefaultForExpenses = it },
                     )
                     Text(
-                        text = "Select all members by default in new expenses",
-                        modifier = Modifier.padding(top = 12.dp, start = 8.dp),
+                        text = "Leave this off if you want new expenses to start with no participants selected.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ComposeColor.White.copy(alpha = 0.68f),
                     )
                 }
-                Text(
-                    text = "Leave the last option unchecked to start each expense with no participants selected.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val name = groupName.trim()
-                    if (name.isNotBlank()) {
-                        onCreate(
-                            CreateGroupDraft(
-                                name = name,
-                                description = groupDescription.trim(),
-                                autoRenewInvite = autoRenewInvite,
-                                selectAllMembersByDefaultForExpenses = selectAllMembersByDefaultForExpenses,
-                            ),
-                        )
-                        groupName = ""
-                        groupDescription = ""
-                        autoRenewInvite = true
-                        selectAllMembersByDefaultForExpenses = false
-                    }
-                },
-                enabled = groupName.trim().isNotBlank(),
+        actions = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text("Create")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 52.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = ComposeColor.White,
+                    ),
+                    border = BorderStroke(1.dp, ComposeColor.White.copy(alpha = 0.18f)),
+                ) {
+                    Text("Cancel")
+                }
+                GradientButton(
+                    text = "Create",
+                    onClick = {
+                        if (normalizedName.isNotBlank()) {
+                            onCreate(
+                                CreateGroupDraft(
+                                    name = normalizedName,
+                                    description = groupDescription.trim(),
+                                    autoRenewInvite = autoRenewInvite,
+                                    selectAllMembersByDefaultForExpenses = selectAllMembersByDefaultForExpenses,
+                                ),
+                            )
+                            groupName = ""
+                            groupDescription = ""
+                            autoRenewInvite = true
+                            selectAllMembersByDefaultForExpenses = false
+                        }
+                    },
+                    enabled = normalizedName.isNotBlank(),
+                    modifier = Modifier.weight(1f),
+                )
             }
         },
     )
@@ -2093,6 +2789,7 @@ private fun GroupDetailsDialog(
     group: Group,
     isOwner: Boolean,
     onDismiss: () -> Unit,
+    onCopyInvite: () -> Unit,
     onSave: (description: String, autoRenewInvite: Boolean, selectAllMembersByDefaultForExpenses: Boolean) -> Unit,
     onRenewInvite: () -> Unit,
 ) {
@@ -2106,106 +2803,200 @@ private fun GroupDetailsDialog(
     ) {
         mutableStateOf(group.selectAllMembersByDefaultForExpenses)
     }
+    val inviteExpired = group.inviteExpiryEpochMs < System.currentTimeMillis()
+    val inviteStatus = when {
+        inviteExpired -> "Expired"
+        group.autoRenewInvite -> "Auto-renews"
+        else -> "Active"
+    }
 
-    AlertDialog(
+    LetsGoDutchRevampDialog(
+        label = "Group Details",
+        title = group.name,
+        supportingText = if (isOwner) {
+            "Update the description, invite behavior, and expense defaults for this group."
+        } else {
+            "Review the invite, description, and expense defaults configured for this group."
+        },
         onDismissRequest = onDismiss,
-        title = { Text("Group Details") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Name: ${group.name}")
-                Text("Invite code: ${group.inviteCode}")
-                Text("Invite expires: ${group.inviteExpiryEpochMs.toGroupDetailsDateTime()}")
-                Text(
-                    text = if (group.inviteExpiryEpochMs < System.currentTimeMillis()) {
-                        "Invite status: Expired"
-                    } else {
-                        "Invite status: Active"
-                    },
-                )
-                if (isOwner) {
-                    TextButton(onClick = onRenewInvite) {
-                        Text("Renew Invite Now")
-                    }
-                    OutlinedTextField(
-                        value = description,
-                        onValueChange = { description = it },
-                        label = { Text("Group description") },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 2,
-                        maxLines = 4,
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { autoRenewInvite = !autoRenewInvite },
-                    ) {
-                        Checkbox(
-                            checked = autoRenewInvite,
-                            onCheckedChange = { autoRenewInvite = it },
+        badgeText = if (isOwner) "Owner" else "Read only",
+        icon = Icons.Default.Info,
+        content = {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.48f),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item {
+                    LetsGoDutchRevampCard {
+                        SectionLabel(text = "Invite Access")
+                        LetsGoDutchDialogLabelValueRow(label = "Invite code", value = group.inviteCode)
+                        LetsGoDutchDialogLabelValueRow(
+                            label = "Expires",
+                            value = group.inviteExpiryEpochMs.toGroupDetailsDateTime(),
                         )
-                        Text(
-                            text = "Auto-renew invite after expiry",
-                            modifier = Modifier.padding(top = 12.dp, start = 8.dp),
-                        )
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                selectAllMembersByDefaultForExpenses = !selectAllMembersByDefaultForExpenses
-                            },
-                    ) {
-                        Checkbox(
-                            checked = selectAllMembersByDefaultForExpenses,
-                            onCheckedChange = { selectAllMembersByDefaultForExpenses = it },
-                        )
-                        Text(
-                            text = "Select all members by default in new expenses",
-                            modifier = Modifier.padding(top = 12.dp, start = 8.dp),
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "Description: ${group.description.ifBlank { "No description added." }}",
-                    )
-                    Text(
-                        text = "Invite auto-renew: ${if (group.autoRenewInvite) "On" else "Off"}",
-                    )
-                    Text(
-                        text = "Expense default: ${
-                            if (group.selectAllMembersByDefaultForExpenses) {
-                                "All members selected"
-                            } else {
-                                "All members unselected"
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            LetsGoDutchDialogPill(
+                                text = inviteStatus,
+                                containerColor = if (inviteExpired) {
+                                    ComposeColor(0x33FFB4AB)
+                                } else {
+                                    ComposeColor.White.copy(alpha = 0.10f)
+                                },
+                                contentColor = if (inviteExpired) {
+                                    ComposeColor(0xFFFFB4AB)
+                                } else {
+                                    MintGreen
+                                },
+                            )
+                            Text(
+                                text = if (group.autoRenewInvite && !inviteExpired) {
+                                    "A fresh code will stay available after the current one expires."
+                                } else {
+                                    "Owners can renew the current code when needed."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = ComposeColor.White.copy(alpha = 0.72f),
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            TextButton(onClick = onCopyInvite) {
+                                Text("Copy invite code")
                             }
-                        }",
-                    )
+                            if (isOwner) {
+                                TextButton(onClick = onRenewInvite) {
+                                    Text("Renew invite now")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    LetsGoDutchRevampCard {
+                        SectionLabel(text = "Group Description")
+                        if (isOwner) {
+                            OutlinedTextField(
+                                value = description,
+                                onValueChange = { description = it },
+                                label = { Text("Description") },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 3,
+                                maxLines = 4,
+                                colors = revampDialogTextFieldColors(),
+                            )
+                        } else {
+                            Text(
+                                text = group.description.ifBlank { "No description added yet." },
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = ComposeColor.White,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    LetsGoDutchRevampCard {
+                        SectionLabel(text = if (isOwner) "Expense Defaults" else "Current Defaults")
+                        if (isOwner) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { autoRenewInvite = !autoRenewInvite },
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Checkbox(
+                                    checked = autoRenewInvite,
+                                    onCheckedChange = { autoRenewInvite = it },
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Auto-renew invite",
+                                        color = ComposeColor.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    Text(
+                                        text = "Keeps a usable join code available after the current one expires.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = ComposeColor.White.copy(alpha = 0.72f),
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectAllMembersByDefaultForExpenses = !selectAllMembersByDefaultForExpenses
+                                    },
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Checkbox(
+                                    checked = selectAllMembersByDefaultForExpenses,
+                                    onCheckedChange = { selectAllMembersByDefaultForExpenses = it },
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Select all members by default",
+                                        color = ComposeColor.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    Text(
+                                        text = "New expenses start with the whole group selected as participants.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = ComposeColor.White.copy(alpha = 0.72f),
+                                    )
+                                }
+                            }
+                        } else {
+                            LetsGoDutchDialogLabelValueRow(
+                                label = "Invite auto-renew",
+                                value = if (group.autoRenewInvite) "On" else "Off",
+                            )
+                            LetsGoDutchDialogLabelValueRow(
+                                label = "New expense participants",
+                                value = if (group.selectAllMembersByDefaultForExpenses) {
+                                    "All members selected"
+                                } else {
+                                    "Start unselected"
+                                },
+                            )
+                        }
+                    }
                 }
             }
         },
-        confirmButton = {
-            if (isOwner) {
-                Button(
-                    onClick = {
+        actions = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.End),
+            ) {
+                Text(if (isOwner) "Cancel" else "Close")
+            }
+            GradientButton(
+                text = if (isOwner) "Save Details" else "Done",
+                onClick = {
+                    if (isOwner) {
                         onSave(
                             description.trim(),
                             autoRenewInvite,
                             selectAllMembersByDefaultForExpenses,
                         )
-                    },
-                ) {
-                    Text("Save")
-                }
-            } else {
-                TextButton(onClick = onDismiss) {
-                    Text("Done")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(if (isOwner) "Cancel" else "Close")
-            }
+                    } else {
+                        onDismiss()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
         },
     )
 }
@@ -2216,35 +3007,79 @@ private fun JoinGroupDialog(
     onJoin: (inviteCode: String) -> Unit,
 ) {
     var inviteCode by rememberSaveable { mutableStateOf("") }
-    AlertDialog(
+    val normalizedInviteCode = inviteCode.toNormalizedInviteCode()
+
+    LetsGoDutchRevampDialog(
+        label = "Groups",
+        title = "Join Group",
+        supportingText = "Enter the invite code shared by an owner. We will validate it and show any claim options before adding you.",
         onDismissRequest = onDismiss,
-        title = { Text("Join Group") },
-        text = {
-            OutlinedTextField(
-                value = inviteCode,
-                onValueChange = { inviteCode = it.toNormalizedInviteCode() },
-                label = { Text("Invite code") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val code = inviteCode.toNormalizedInviteCode()
-                    if (code.isNotBlank()) {
-                        onJoin(code)
-                        inviteCode = ""
-                    }
-                },
-                enabled = inviteCode.toNormalizedInviteCode().isNotBlank(),
-            ) {
-                Text("Join")
+        badgeText = if (normalizedInviteCode.isBlank()) "Invite" else "Ready",
+        icon = Icons.Default.PersonAddAlt1,
+        content = {
+            LetsGoDutchRevampCard {
+                SectionLabel(text = "Invite Code")
+                Text(
+                    text = "Codes are case-insensitive. Spaces and separators are ignored automatically.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ComposeColor.White.copy(alpha = 0.72f),
+                )
+                OutlinedTextField(
+                    value = inviteCode,
+                    onValueChange = { inviteCode = it.toNormalizedInviteCode() },
+                    label = { Text("Invite code") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = revampDialogTextFieldColors(),
+                )
+                LetsGoDutchDialogLabelValueRow(
+                    label = "Entered code",
+                    value = normalizedInviteCode.ifBlank { "Waiting for input" },
+                    valueColor = if (normalizedInviteCode.isBlank()) {
+                        ComposeColor.White.copy(alpha = 0.52f)
+                    } else {
+                        MintGreen
+                    },
+                )
+            }
+
+            LetsGoDutchRevampCard {
+                SectionLabel(text = "What Happens Next")
+                Text(
+                    text = "If the owner already created a placeholder for you, the next step will let you claim it instead of joining as a duplicate member.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ComposeColor.White.copy(alpha = 0.72f),
+                )
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+        actions = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 52.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = ComposeColor.White,
+                    ),
+                    border = BorderStroke(1.dp, ComposeColor.White.copy(alpha = 0.18f)),
+                ) {
+                    Text("Cancel")
+                }
+                GradientButton(
+                    text = "Join",
+                    onClick = {
+                        if (normalizedInviteCode.isNotBlank()) {
+                            onJoin(normalizedInviteCode)
+                            inviteCode = ""
+                        }
+                    },
+                    enabled = normalizedInviteCode.isNotBlank(),
+                    modifier = Modifier.weight(1f),
+                )
             }
         },
     )
@@ -2349,159 +3184,61 @@ private fun ClaimableMemberRow(
 }
 
 @Composable
-private fun AppTourDialog(
-    onDismiss: () -> Unit,
-) {
-    data class AppTourStep(
-        val title: String,
-        val description: String,
-    )
-    val steps = remember {
-        listOf(
-            AppTourStep(
-                title = "Groups",
-                description = "Create or join groups from the drawer and share invites quickly.",
-            ),
-            AppTourStep(
-                title = "Expenses",
-                description = "Add expenses with equal, exact, percentage, or custom split styles.",
-            ),
-            AppTourStep(
-                title = "Insights",
-                description = "Use Ledger and Insights tabs to track balances and smart transfers.",
-            ),
-            AppTourStep(
-                title = "Settlement",
-                description = "Owners can preview, generate settlement PDF, and close the cycle.",
-            ),
-            AppTourStep(
-                title = "Personal Tools",
-                description = "Track self expenses, manage to-do tasks, and export reports.",
-            ),
-        )
-    }
-    var stepIndex by rememberSaveable { mutableIntStateOf(0) }
-    val isLastStep = stepIndex == steps.lastIndex
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("App Tour") },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(
-                    text = "Step ${stepIndex + 1} of ${steps.size}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 150.dp),
-                ) {
-                    AnimatedContent(
-                        targetState = stepIndex,
-                        transitionSpec = {
-                            if (targetState > initialState) {
-                                (slideInHorizontally { it } + fadeIn()) togetherWith
-                                    (slideOutHorizontally { -it / 3 } + fadeOut())
-                            } else {
-                                (slideInHorizontally { -it } + fadeIn()) togetherWith
-                                    (slideOutHorizontally { it / 3 } + fadeOut())
-                            }
-                        },
-                        label = "tour_card_slide",
-                    ) { index ->
-                        val step = steps[index]
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                        ) {
-                            Text(
-                                text = step.title,
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                            Text(
-                                text = step.description,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
-                        }
-                    }
-                }
-                Text(
-                    text = steps.indices.joinToString(" ") { index ->
-                        if (index == stepIndex) "*" else "o"
-                    },
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (isLastStep) {
-                        onDismiss()
-                    } else {
-                        stepIndex += 1
-                    }
-                },
-            ) {
-                Text(if (isLastStep) "Finish" else "Next")
-            }
-        },
-        dismissButton = {
-            if (stepIndex == 0) {
-                TextButton(onClick = onDismiss) {
-                    Text("Skip")
-                }
-            } else {
-                TextButton(onClick = { stepIndex -= 1 }) {
-                    Text("Back")
-                }
-            }
-        },
-    )
-}
-
-@Composable
 private fun AddMemberDialog(
     onDismiss: () -> Unit,
     onAdd: (memberName: String) -> Unit,
 ) {
     var memberName by rememberSaveable { mutableStateOf("") }
-    AlertDialog(
+    val normalizedName = memberName.trim()
+
+    LetsGoDutchRevampDialog(
+        label = "Members",
+        title = "Add a Member",
+        supportingText = "Add someone to the group now. They can still claim or rename this slot later if needed.",
         onDismissRequest = onDismiss,
-        title = { Text("Add Member") },
-        text = {
-            OutlinedTextField(
-                value = memberName,
-                onValueChange = { memberName = it },
-                label = { Text("Member name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val name = memberName.trim()
-                    if (name.isNotBlank()) {
-                        onAdd(name)
-                    }
-                },
-                enabled = memberName.trim().isNotBlank(),
-            ) {
-                Text("Add")
+        badgeText = "New",
+        icon = Icons.Default.PersonAddAlt1,
+        content = {
+            LetsGoDutchRevampCard {
+                SectionLabel(text = "Member Name")
+                Text(
+                    text = "This name appears in expenses, balances, and settlements until the person joins the app or you rename the entry.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ComposeColor.White.copy(alpha = 0.72f),
+                )
+                OutlinedTextField(
+                    value = memberName,
+                    onValueChange = { memberName = it },
+                    label = { Text("Member name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = revampDialogTextFieldColors(),
+                )
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+        actions = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 52.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = ComposeColor.White,
+                    ),
+                    border = BorderStroke(1.dp, ComposeColor.White.copy(alpha = 0.18f)),
+                ) {
+                    Text("Cancel")
+                }
+                GradientButton(
+                    text = "Add",
+                    onClick = { onAdd(normalizedName) },
+                    enabled = normalizedName.isNotBlank(),
+                    modifier = Modifier.weight(1f),
+                )
             }
         },
     )
@@ -2559,48 +3296,105 @@ private fun ManageMembersDialog(
     val manageableMembers = members
         .filter { member -> member.active && member.userId != mainOwnerUserId }
         .sortedWith(compareByDescending<Member> { it.role == Role.OWNER }.thenBy { it.joinedAtEpochMs })
+    val ownerCount = manageableMembers.count { it.role == Role.OWNER }
+    val manualCount = manageableMembers.count { isManualMemberUserId(it.userId) }
 
-    AlertDialog(
+    LetsGoDutchRevampDialog(
+        label = "Members",
+        title = "Manage Members",
+        supportingText = "Adjust roles, rename manual placeholders, and remove stand-ins cleanly.",
         onDismissRequest = onDismiss,
-        title = { Text("Manage Members") },
-        text = {
+        badgeText = "${manageableMembers.size} active",
+        icon = Icons.Default.ManageAccounts,
+        content = {
+            LetsGoDutchRevampCard {
+                SectionLabel(text = "Quick Summary")
+                LetsGoDutchDialogLabelValueRow(
+                    label = "Owners in this list",
+                    value = ownerCount.toString(),
+                )
+                LetsGoDutchDialogLabelValueRow(
+                    label = "Manual placeholders",
+                    value = manualCount.toString(),
+                )
+            }
+
             if (manageableMembers.isEmpty()) {
-                Text("No manageable members in this group.")
+                LetsGoDutchRevampCard {
+                    Text(
+                        text = "No manageable members are available in this group right now.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ComposeColor.White.copy(alpha = 0.74f),
+                    )
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 320.dp),
+                        .heightIn(max = 360.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(manageableMembers, key = { it.userId }) { member ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(member.toFriendlyDisplayName())
-                                Text(
+                        LetsGoDutchRevampCard {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = member.toFriendlyDisplayName(),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = ComposeColor.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    Text(
+                                        text = if (isManualMemberUserId(member.userId)) {
+                                            "Manual placeholder"
+                                        } else {
+                                            "Linked app member"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = ComposeColor.White.copy(alpha = 0.72f),
+                                    )
+                                }
+                                LetsGoDutchDialogPill(
                                     text = if (member.role == Role.OWNER) "Owner" else "Member",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    containerColor = ComposeColor.White.copy(alpha = 0.10f),
+                                    contentColor = if (member.role == Role.OWNER) MintGreen else ComposeColor.White,
                                 )
+                            }
+
+                            if (isManualMemberUserId(member.userId)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.End,
                                 ) {
-                                    if (isManualMemberUserId(member.userId)) {
-                                        TextButton(onClick = { onEditClick(member) }) {
-                                            Text("Edit")
-                                        }
+                                    TextButton(onClick = { onEditClick(member) }) {
+                                        Text("Edit")
                                     }
-                                    TextButton(
-                                        onClick = { onToggleOwnerClick(member, member.role != Role.OWNER) },
-                                    ) {
-                                        Text(if (member.role == Role.OWNER) "Make Member" else "Make Owner")
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                TextButton(
+                                    onClick = { onToggleOwnerClick(member, member.role != Role.OWNER) },
+                                ) {
+                                    if (member.role != Role.OWNER) {
+                                        Icon(
+                                            imageVector = Icons.Default.WorkspacePremium,
+                                            contentDescription = null,
+                                            tint = MintGreen,
+                                            modifier = Modifier.padding(end = 6.dp),
+                                        )
                                     }
-                                    TextButton(onClick = { onRemoveClick(member) }) {
-                                        Text("Remove")
-                                    }
+                                    Text(if (member.role == Role.OWNER) "Make Member" else "Make Owner")
+                                }
+                                TextButton(onClick = { onRemoveClick(member) }) {
+                                    Text("Remove")
                                 }
                             }
                         }
@@ -2608,10 +3402,12 @@ private fun ManageMembersDialog(
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Done")
-            }
+        actions = {
+            GradientButton(
+                text = "Done",
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+            )
         },
     )
 }
@@ -2629,39 +3425,76 @@ private fun MembersListDialog(
                 .thenByDescending { it.role == Role.OWNER }
                 .thenBy { it.joinedAtEpochMs },
         )
+    val ownerCount = activeMembers.count { it.role == Role.OWNER || it.userId == mainOwnerUserId }
 
-    AlertDialog(
+    LetsGoDutchRevampDialog(
+        label = "Members",
+        title = "Group Members",
+        supportingText = "Everyone currently active in this group is listed here with their present role.",
         onDismissRequest = onDismiss,
-        title = { Text("Group Members") },
-        text = {
+        badgeText = "${activeMembers.size} total",
+        icon = Icons.Default.ManageAccounts,
+        content = {
+            LetsGoDutchRevampCard {
+                SectionLabel(text = "Quick Summary")
+                LetsGoDutchDialogLabelValueRow(
+                    label = "Active members",
+                    value = activeMembers.size.toString(),
+                )
+                LetsGoDutchDialogLabelValueRow(
+                    label = "Owners",
+                    value = ownerCount.toString(),
+                )
+            }
+
             if (activeMembers.isEmpty()) {
-                Text("No active members in this group.")
+                LetsGoDutchRevampCard {
+                    Text(
+                        text = "No active members are available in this group.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ComposeColor.White.copy(alpha = 0.74f),
+                    )
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 320.dp),
+                        .heightIn(max = 360.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(activeMembers, key = { it.userId }) { member ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                        ) {
+                        val roleLabel = when {
+                            member.userId == mainOwnerUserId -> "Main Owner"
+                            member.role == Role.OWNER -> "Owner"
+                            else -> "Member"
+                        }
+                        LetsGoDutchRevampCard {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(member.toFriendlyDisplayName())
-                                Text(
-                                    text = when {
-                                        member.userId == mainOwnerUserId -> "Main Owner"
-                                        member.role == Role.OWNER -> "Owner"
-                                        else -> "Member"
-                                    },
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = member.toFriendlyDisplayName(),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = ComposeColor.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    Text(
+                                        text = if (isManualMemberUserId(member.userId)) {
+                                            "Manual placeholder"
+                                        } else {
+                                            "Linked app member"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = ComposeColor.White.copy(alpha = 0.72f),
+                                    )
+                                }
+                                LetsGoDutchDialogPill(
+                                    text = roleLabel,
+                                    containerColor = ComposeColor.White.copy(alpha = 0.10f),
+                                    contentColor = if (roleLabel.contains("Owner")) MintGreen else ComposeColor.White,
                                 )
                             }
                         }
@@ -2669,9 +3502,163 @@ private fun MembersListDialog(
                 }
             }
         },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Done")
+        actions = {
+            GradientButton(
+                text = "Done",
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+    )
+}
+
+@Composable
+private fun RecentSettlementsDialog(
+    groupName: String,
+    settlements: List<RecentSettlementRecord>,
+    onDismiss: () -> Unit,
+    onOpenPdf: (RecentSettlementRecord) -> Unit,
+    onDeleteEntry: (RecentSettlementRecord) -> Unit,
+) {
+    LetsGoDutchRevampDialog(
+        label = "Settlements",
+        title = "Recent Settlements",
+        supportingText = "Saved settlement reports for $groupName on this device.",
+        onDismissRequest = onDismiss,
+        badgeText = if (settlements.isEmpty()) null else "${settlements.size} saved",
+        icon = Icons.Default.History,
+        content = {
+            if (settlements.isEmpty()) {
+                LetsGoDutchRevampCard {
+                    Text(
+                        text = "No recent settlement PDFs are saved for this group on this device yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = ComposeColor.White.copy(alpha = 0.74f),
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 380.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(settlements, key = { it.entryId }) { settlement ->
+                        LetsGoDutchRevampCard {
+                            SectionLabel(text = settlement.settledAtEpochMs.toGroupDetailsDateTime())
+                            Text(
+                                text = settlement.pdfFileName,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = ComposeColor.White,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = if (settlement.pdfExists) {
+                                    "Saved locally on this device."
+                                } else {
+                                    "PDF file is missing from this device."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (settlement.pdfExists) {
+                                    ComposeColor.White.copy(alpha = 0.72f)
+                                } else {
+                                    ComposeColor(0xFFFFB4AB)
+                                },
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                TextButton(
+                                    onClick = { onOpenPdf(settlement) },
+                                    enabled = settlement.pdfExists,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PictureAsPdf,
+                                        contentDescription = null,
+                                        tint = MintGreen,
+                                        modifier = Modifier.padding(end = 6.dp),
+                                    )
+                                    Text("Open PDF")
+                                }
+                                TextButton(onClick = { onDeleteEntry(settlement) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.DeleteOutline,
+                                        contentDescription = null,
+                                        tint = ComposeColor(0xFFFFB4AB),
+                                        modifier = Modifier.padding(end = 6.dp),
+                                    )
+                                    Text("Delete")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        actions = {
+            GradientButton(
+                text = "Done",
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+    )
+}
+
+@Composable
+private fun AppReviewPromptDialog(
+    isLaunching: Boolean,
+    onDismiss: () -> Unit,
+    onReviewClick: () -> Unit,
+) {
+    LetsGoDutchRevampDialog(
+        label = "Support",
+        title = "Enjoying Let's Go Dutch?",
+        supportingText = "If the app is helping, please rate it and share a short review on Google Play so we can keep improving it.",
+        onDismissRequest = onDismiss,
+        badgeText = "Quick favor",
+        icon = Icons.Default.StarRate,
+        content = {
+            LetsGoDutchRevampCard {
+                SectionLabel(text = "Why this helps")
+                Text(
+                    text = "Ratings and reviews help other people discover the app and help us prioritize the fixes and improvements that matter most.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ComposeColor.White.copy(alpha = 0.74f),
+                )
+            }
+        },
+        actions = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 52.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = ComposeColor.White,
+                    ),
+                    border = BorderStroke(1.dp, ComposeColor.White.copy(alpha = 0.18f)),
+                ) {
+                    Text("Later")
+                }
+                GradientButton(
+                    text = if (isLaunching) "Opening..." else "Rate the App",
+                    onClick = onReviewClick,
+                    enabled = !isLaunching,
+                    modifier = Modifier.weight(1f),
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Default.StarRate,
+                            contentDescription = null,
+                            tint = ComposeColor.White,
+                        )
+                    },
+                )
             }
         },
     )
@@ -2682,12 +3669,14 @@ private fun GroupOverflowMenu(
     isOwner: Boolean,
     canAddMember: Boolean,
     canViewMembers: Boolean,
+    canViewRecentSettlements: Boolean,
     hasExpenses: Boolean,
     onMarkAsSettledClick: () -> Unit,
     onAddMemberClick: () -> Unit,
     onManageMembersClick: () -> Unit,
     onGroupDetailsClick: () -> Unit,
     onViewMembersClick: () -> Unit,
+    onRecentSettlementsClick: () -> Unit,
     onDeleteGroupClick: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -2701,54 +3690,149 @@ private fun GroupOverflowMenu(
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = { expanded = false },
+        shape = RoundedCornerShape(20.dp),
+        containerColor = NightSoft,
+        border = BorderStroke(1.dp, MintGlow),
+        shadowElevation = 16.dp,
     ) {
         DropdownMenuItem(
-            text = { Text("Mark as Settled") },
+            text = { Text("Settle Group") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.TaskAlt,
+                    contentDescription = null,
+                )
+            },
             enabled = isOwner && hasExpenses,
             onClick = {
                 expanded = false
                 onMarkAsSettledClick()
             },
+            colors = MenuDefaults.itemColors(
+                textColor = ComposeColor.White,
+                leadingIconColor = MintGreen,
+                disabledTextColor = ComposeColor.White.copy(alpha = 0.40f),
+                disabledLeadingIconColor = ComposeColor.White.copy(alpha = 0.30f),
+            ),
         )
         DropdownMenuItem(
             text = { Text("Add Member") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.PersonAddAlt1,
+                    contentDescription = null,
+                )
+            },
             enabled = canAddMember,
             onClick = {
                 expanded = false
                 onAddMemberClick()
             },
+            colors = MenuDefaults.itemColors(
+                textColor = ComposeColor.White,
+                leadingIconColor = MintGreen,
+                disabledTextColor = ComposeColor.White.copy(alpha = 0.40f),
+                disabledLeadingIconColor = ComposeColor.White.copy(alpha = 0.30f),
+            ),
         )
         DropdownMenuItem(
             text = { Text("Manage Members") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ManageAccounts,
+                    contentDescription = null,
+                )
+            },
             enabled = isOwner,
             onClick = {
                 expanded = false
                 onManageMembersClick()
             },
+            colors = MenuDefaults.itemColors(
+                textColor = ComposeColor.White,
+                leadingIconColor = MintGreen,
+                disabledTextColor = ComposeColor.White.copy(alpha = 0.40f),
+                disabledLeadingIconColor = ComposeColor.White.copy(alpha = 0.30f),
+            ),
         )
         DropdownMenuItem(
             text = { Text("Group Details") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                )
+            },
             enabled = canViewMembers,
             onClick = {
                 expanded = false
                 onGroupDetailsClick()
             },
+            colors = MenuDefaults.itemColors(
+                textColor = ComposeColor.White,
+                leadingIconColor = MintGreen,
+                disabledTextColor = ComposeColor.White.copy(alpha = 0.40f),
+                disabledLeadingIconColor = ComposeColor.White.copy(alpha = 0.30f),
+            ),
         )
         DropdownMenuItem(
             text = { Text("List Members") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ManageAccounts,
+                    contentDescription = null,
+                )
+            },
             enabled = canViewMembers,
             onClick = {
                 expanded = false
                 onViewMembersClick()
             },
+            colors = MenuDefaults.itemColors(
+                textColor = ComposeColor.White,
+                leadingIconColor = MintGreen,
+                disabledTextColor = ComposeColor.White.copy(alpha = 0.40f),
+                disabledLeadingIconColor = ComposeColor.White.copy(alpha = 0.30f),
+            ),
         )
+        if (canViewRecentSettlements) {
+            DropdownMenuItem(
+                text = { Text("Recent Settlements") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = null,
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onRecentSettlementsClick()
+                },
+                colors = MenuDefaults.itemColors(
+                    textColor = ComposeColor.White,
+                    leadingIconColor = MintGreen,
+                ),
+            )
+        }
         DropdownMenuItem(
             text = { Text("Delete Group") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.DeleteOutline,
+                    contentDescription = null,
+                )
+            },
             enabled = isOwner,
             onClick = {
                 expanded = false
                 onDeleteGroupClick()
             },
+            colors = MenuDefaults.itemColors(
+                textColor = ComposeColor.White,
+                leadingIconColor = ComposeColor(0xFFFFB4AB),
+                disabledTextColor = ComposeColor.White.copy(alpha = 0.40f),
+                disabledLeadingIconColor = ComposeColor.White.copy(alpha = 0.30f),
+            ),
         )
     }
 }
@@ -3082,7 +4166,8 @@ private tailrec fun Context.findActivity(): Activity? {
 
 private fun Context.shareJoinLink(group: Group) {
     val inviteCode = group.inviteCode.toNormalizedInviteCode()
-    val webJoinLink = "https://letsgodutch.app/join/$inviteCode"
+    val webJoinLink = "$WEB_JOIN_LINK_URL_PREFIX$inviteCode"
+    copyToClipboard(label = "Invite link", text = webJoinLink)
     val message = buildString {
         append("Join ${group.name} on Let's Go Dutch\n")
         append("$webJoinLink\n")
@@ -3096,6 +4181,12 @@ private fun Context.shareJoinLink(group: Group) {
         putExtra(Intent.EXTRA_TEXT, message)
     }
     startChooser(intent, "Share Invite")
+}
+
+private fun Context.copyToClipboard(label: String, text: String) {
+    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+        ?: return
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(label, text))
 }
 
 private fun Context.shareSettlementPdf(pdfPath: String) {
@@ -3114,6 +4205,46 @@ private fun Context.shareSettlementPdf(pdfPath: String) {
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     startChooser(intent, "Share Settlement PDF")
+}
+
+private fun Context.openSettlementPdf(pdfPath: String) {
+    val file = File(pdfPath)
+    if (!file.exists()) {
+        showShortToast("Saved PDF is missing from this device.")
+        return
+    }
+    val uri = FileProvider.getUriForFile(
+        this,
+        "$packageName.fileprovider",
+        file,
+    )
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "application/pdf")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    startChooser(intent, "Open Settlement PDF")
+}
+
+private fun Context.openPlayStoreReviewPage() {
+    val marketIntent = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse("market://details?id=$packageName"),
+    ).apply {
+        if (this@openPlayStoreReviewPage !is Activity) {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+    val webIntent = Intent(
+        Intent.ACTION_VIEW,
+        Uri.parse("https://play.google.com/store/apps/details?id=$packageName"),
+    ).apply {
+        if (this@openPlayStoreReviewPage !is Activity) {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+
+    runCatching { startActivity(marketIntent) }
+        .recoverCatching { startActivity(webIntent) }
 }
 
 private suspend fun Context.generatePersonalExpenseReportPdf(
@@ -3351,6 +4482,8 @@ private const val NOTIFICATION_GROUP_KEY_UPDATES = "letsgodutch_updates_group"
 private const val NOTIFICATION_GROUP_SUMMARY_ID = 1001
 private const val JOIN_SOURCE_DEEP_LINK = "deep_link"
 private const val JOIN_SOURCE_DRAWER = "drawer"
+private const val SETTLEMENT_PREVIEW_BANNER_AD_UNIT_ID = "ca-app-pub-2020561089374332/8664878132"
+private const val SETTLEMENT_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-2020561089374332/2345409615"
 
 private data class PendingInviteJoinRequest(
     val inviteCode: String,
@@ -3391,4 +4524,15 @@ private fun UserProfile?.toFriendlyDisplayName(): String {
     if (emailPrefix.isNotBlank()) return emailPrefix
 
     return "Member"
+}
+
+private fun UserProfile?.toSettingsAccountSummary(): String {
+    if (this == null) return "Stable account identity"
+    return when {
+        isAnonymous -> "Anonymous account"
+        primaryAuthProvider == "google.com" && upgradedFromAnonymousAtEpochMs != null ->
+            "Google-linked account, upgraded in place"
+        primaryAuthProvider == "google.com" -> "Google-linked account"
+        else -> "Stable account identity"
+    }
 }

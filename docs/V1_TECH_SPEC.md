@@ -115,3 +115,4 @@ notifications/{userId}/{notificationId}
 2. Replace deprecated Google Sign-In API path with Credential Manager.
 3. Add instrumentation tests for auth/group/expense/settlement flows.
 4. Add explicit member-side acknowledgment flow for settlement PDF receipt.
+5. Validate release-signed Android App Links against `buddingintents.com` and capture final browser-to-app QA evidence.

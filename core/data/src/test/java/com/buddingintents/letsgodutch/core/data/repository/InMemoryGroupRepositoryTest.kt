@@ -2,6 +2,7 @@ package com.buddingintents.letsgodutch.core.data.repository
 
 import com.buddingintents.letsgodutch.core.data.repository.inmemory.InMemoryGroupRepository
 import com.buddingintents.letsgodutch.core.model.Role
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -9,6 +10,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class InMemoryGroupRepositoryTest {
+
+    @Test
+    fun `repository starts without a seeded group`() = runBlocking {
+        val repository = InMemoryGroupRepository()
+
+        val groups = repository.observeGroupsForUser("user_owner").first()
+
+        assertTrue(groups.isEmpty())
+    }
 
     @Test
     fun `createGroup stores description invite renewal and expense defaults`() = runBlocking {

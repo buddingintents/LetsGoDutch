@@ -2,39 +2,33 @@ package com.buddingintents.letsgodutch.core.designsystem.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Light theme
-val Purple500 = Color(0xFF6B4EAA)
-val Purple600 = Color(0xFF5A3E8F)
-val Purple700 = Color(0xFF4A3277)
-val Purple100 = Color(0xFFE8DDF5)
-val Purple50 = Color(0xFFF3EEFC)
+val MintGreen = Color(0xFF3DD68C)
+val MintGreenDim = Color(0xFF2DB878)
+val MintFoam = Color(0xFFF0FDF7)
+val MintFoamDeep = Color(0xFFDDF7EA)
+val MintGlow = Color(0x333DD68C)
+val MintOutline = Color(0x663DD68C)
 
-val Teal500 = Color(0xFF00897B)
-val Teal600 = Color(0xFF006B5F)
-val Teal400 = Color(0xFF26A69A)
-val Teal100 = Color(0xFFB2DFDB)
-val Teal50 = Color(0xFFE0F2F1)
+val MintTeal = Color(0xFF0D7A6E)
+val MintTealDark = Color(0xFF0A4A3E)
 
-val DullBlack = Color(0xFF2D2D2D)
-val DullBlackVariant = Color(0xFF4A4A4A)
+val Charcoal = Color(0xFF1C2333)
+val Slate = Color(0xFF3A4460)
+val SlateSoft = Color(0xFF6B7A8D)
+val Night = Color(0xFF121C28)
+val NightSoft = Color(0xFF243046)
 
-val SurfaceLight = Color(0xFFFAFAFA)
-val SurfaceLightVariant = Color(0xFFF5F5F5)
-val OutlineLight = Color(0xFF79747E)
-val SurfaceVariantLight = Color(0xFFE7E0EC)
-val OnSurfaceVariantLight = Color(0xFF49454F)
+val FogGrey = Color(0xFFF4F7F5)
+val SurfaceLight = Color(0xFFFFFFFF)
+val SurfaceLightVariant = Color(0xFFE8F2ED)
+val SurfaceDark = Charcoal
+val SurfaceDarkVariant = NightSoft
 
-// Dark theme
-val Purple200 = Color(0xFFD0BCFF)
-val Purple300 = Color(0xFFB8A3E8)
-val Purple400 = Color(0xFF9E87D4)
+val AmberWarn = Color(0xFFF5A623)
+val AmberSoft = Color(0xFFFFF0D8)
+val CoralError = Color(0xFFFF5C5C)
+val CoralSoft = Color(0xFFFFE4E1)
 
-val Teal200 = Color(0xFF80CBC4)
-val Teal300 = Color(0xFF4DB6AC)
-
-val SurfaceDark = Color(0xFF1C1B1F)
-val SurfaceDarkVariant = Color(0xFF2D2B30)
-val OutlineDark = Color(0xFF938F99)
-val SurfaceVariantDark = Color(0xFF49454F)
-val OnSurfaceVariantDark = Color(0xFFCAC4D0)
-val TextOnDark = Color(0xFFE6E1E5)
+val OutlineLight = Color(0xFFD7E4DC)
+val OutlineDark = Color(0xFF4A5969)
+val TextOnDark = Color(0xFFEAF4F1)

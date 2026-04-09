@@ -1,27 +1,128 @@
 # Let's Go Dutch
 
-Let's Go Dutch is an Android expense-sharing app for friend/family groups.  
-It is built with Kotlin, Jetpack Compose, Firebase Auth, Firebase Realtime Database, and Firebase Cloud Messaging.
+Let's Go Dutch is an Android expense-sharing app for friend, family, flatmate, and event groups.
+It is built with Kotlin, Jetpack Compose, Firebase Auth, Firebase Realtime Database, Firebase Cloud Messaging, and Google Mobile Ads.
 
-## Play Store Listing (Draft)
+The app is INR-first today, supports both Google sign-in and name-only anonymous entry, and is currently in the middle of the `Fresh Mint` UI revamp.
+
+## Current Status
+
+| Field | Value |
+|---|---|
+| Platform | Android |
+| Package ID | `com.buddingintents.letsgodutch` |
+| Min SDK | 26 |
+| Target SDK | 35 |
+| UI Stack | Jetpack Compose + Material 3 |
+| Architecture | multi-module app with `core:*` and `feature:*` modules |
+| Backend | Firebase Auth + Realtime Database + FCM |
+| Current UI Phase | `Fresh Mint` revamp, `R-02` completed and verified, `R-03` next |
+
+## What the App Does
+
+### Shared Group Expenses
+
+- Create a group
+- Join a group with an invite code
+- Share invite links or raw invite codes
+- Add a group description
+- View invite expiry and auto-renew behavior
+- Renew non-auto-renewing invites manually
+- Track owner and member roles
+- Remove members or delete groups with owner-only permissions
+
+### Expense Entry and Balance Tracking
+
+- Add expenses into a group
+- Split by:
+  - Equal
+  - Exact
+  - Percentage
+  - Custom
+- Choose a payer
+- Choose participants with a compact multi-select flow
+- Respect a group-level default for whether participants start selected or unselected
+- Recompute balances per group as expenses change
+
+### Group Insights and Settlement
+
+- View a ledger surface
+- View an insights surface
+- See who owes and who should receive
+- Review suggested settlement transfers
+- Open a dedicated settlement preview before final confirmation
+- Generate and share a settlement PDF
+- Dispatch settlement PDFs to members before final settlement
+- Clear expenses and balances after a successful settlement
+
+### Personal Money Tools
+
+- Self Expense Tracker
+- Title, period, and minimum-amount filters
+- Monthly summary cards
+- PDF export for filtered personal expenses
+- To-do task tracker with swipe-to-complete and swipe-to-cancel
+
+### Notifications
+
+- Firebase-backed notification ingestion for group updates
+- Local notification rendering for incoming notification records
+- Daily local reminder at `10:00 AM` device-local time when unsettled groups still exist
+- No daily reminder when all current groups are settled
+
+## Recent Product Changes
+
+### Groups Landing Revamp
+
+Recent updates to the post-login groups landing surface include:
+
+- New `Group Summary` hero card
+- Aggregate signed-in-user settlement summary across groups
+- Per-group settlement pill showing:
+  - `They owe you`
+  - `You owe them`
+  - `All settled`
+- More compact hero and group card heights to show more information on screen
+- Ambient blurred background art behind the groups surface
+- Invite-code pill resized so settlement status can share the same row
+
+### Login Screen Polish
+
+- Refined auth card and hierarchy in the `Fresh Mint` style
+- Transparent outlined name field without the previous filled placeholder background
+- Updated anonymous sign-in copy for clearer intent
+
+### Reminder Flow
+
+- Daily unsettled-group reminder scheduling at `10:00 AM` local time
+- Alarm rescheduling on:
+  - app start
+  - reboot
+  - package replace
+  - time change
+  - timezone change
+
+## Play Store Listing Draft
 
 ### Short Description
 
 Split group expenses, track personal spends, and settle with shareable PDFs.
 
-### What's New (Draft)
+### What's New Draft
 
-- Anonymous sign-in is now device-aware, so returning users on the same device can sync their existing data more reliably after reinstall.
-- Group owners can add a group description, view invite expiry, auto-renew invite codes, and manually renew invites from Group Details.
-- Expense entry now uses a compact multi-select member picker, with group-level defaults for whether members start selected or unselected.
-- Owner permissions are more consistent across group management actions, and placeholder owner/member claim flows are clearer.
-- Improved legacy account migration and safer handling of Firebase permission-denied responses to reduce app crashes.
+- Fresh Mint UI revamp continues with a refreshed Groups home
+- New `Group Summary` hero with signed-in user settlement totals
+- Per-group `You owe` / `They owe you` amounts on the Groups screen
+- More compact group cards to fit more on screen
+- Polished login experience and cleaner field styling
+- Daily reminders for unsettled groups
+- Stability, readability, and UX improvements
 
-### Full Description
+### Full Description Draft
 
-Let's Go Dutch helps friends, families, and roommates manage shared money without confusion.
+Let's Go Dutch helps friends, families, roommates, and trip groups manage shared money without confusion.
 
-Create a group, invite members with a code or link, add expenses, and split the total your way:
+Create a group, invite members with a code or link, add expenses, and split totals your way:
 
 - Equal split
 - Exact amounts
@@ -30,105 +131,169 @@ Create a group, invite members with a code or link, add expenses, and split the 
 
 Keep everyone aligned with:
 
-- A clear group ledger
-- Insights showing who should pay and who should receive
-- Suggested transfers to settle faster
-- Owner-only settlement preview before final confirmation
-- Settlement PDF generation and sharing
+- a clear group ledger
+- insights showing who should pay and who should receive
+- suggested transfers to settle faster
+- owner-only settlement preview before final confirmation
+- settlement PDF generation and sharing
 
 You also get personal money tools:
 
 - Self Expense Tracker
-- Search and filters (period and minimum amount)
-- Monthly summaries
-- Personal expense PDF export
+- search and filters
+- monthly summaries
+- personal expense PDF export
+- a to-do task tracker with swipe actions
 
-Plus everyday utility features:
+Built for INR-first usage, Let's Go Dutch is designed for trips, flatmates, family spending, events, and everyday shared expense tracking.
 
-- To-Do task tracker with swipe actions (complete/cancel)
-- Group update notifications
-- Light, Dark, and System theme support
+## Module Layout
 
-Built for INR-first usage, Let's Go Dutch is ideal for trips, flatmates, events, and family expense sharing.
+| Module | Responsibility |
+|---|---|
+| `app` | application bootstrap, navigation, app shell, notifications, app-owned screens |
+| `core:common` | shared coroutine helpers and common utilities |
+| `core:model` | serializable domain models such as `Group`, `Expense`, `Balance`, `UserProfile`, and money helpers |
+| `core:data` | Firebase and in-memory repositories, split engine, auth/data orchestration |
+| `core:designsystem` | Fresh Mint theme, colors, type, shapes, and shared UI primitives |
+| `feature:auth` | authentication screen UI |
+| `feature:groups` | groups landing UI and deprecated legacy groups surface |
+| `feature:expenses` | add-expense dialog UI |
+| `feature:ledger` | group ledger screen |
+| `feature:insights` | group insights screen |
+| `feature:settlement` | settlement-related feature code and helper UI |
 
-## Features
+## Important Screens and Ownership
 
-- Google Sign-In authentication
-- Continue with Name option with device-aware anonymous restore for same-device return users
-- Group lifecycle:
-  - create group
-  - join with invite code
-  - share invite deep links
-  - group description support
-  - invite expiry visibility and manual renew option
-  - auto-renew invite support
-  - owner-only delete group
-  - owner-only remove member
-  - placeholder member claim flow for users who join later
-- Expense flow:
-  - add group expenses
-  - split modes: Equal, Exact, Percentage, Custom
-  - compact multi-select participant picker
-  - group-level default for selected/unselected expense participants
-  - payer/member selection with member avatar support
-  - owner-level delete permissions
-- Group tabs:
-  - Ledger
-  - Insights
-- Settlement flow:
-  - owner-only trigger
-  - dedicated **Settlement Preview** screen before final settle
-  - preview includes PDF summary + suggested transfer list + final confirmation
-  - final settlement generates PDF, dispatches to members, and clears active ledger/balances
-- Personal expense tracking:
-  - add/delete personal expenses
-  - filter by period, title, and minimum amount
-  - monthly report summary
-  - export filtered report as PDF
-- Personal to-do tasks:
-  - add tasks
-  - swipe right to mark complete
-  - swipe left to cancel
-- Push + local fallback notifications
-- Theme switching (Light / Dark / System)
-- AdMob banner placement on groups screen
+| Surface | File |
+|---|---|
+| Auth | `feature/auth/src/main/java/com/buddingintents/letsgodutch/feature/auth/AuthScreen.kt` |
+| Canonical groups landing | `feature/groups/src/main/java/com/buddingintents/letsgodutch/feature/groups/GroupsListScreen.kt` |
+| Deprecated groups variant | `feature/groups/src/main/java/com/buddingintents/letsgodutch/feature/groups/GroupsScreen.kt` |
+| Add expense | `feature/expenses/src/main/java/com/buddingintents/letsgodutch/feature/expenses/AddExpenseDialog.kt` |
+| Ledger | `feature/ledger/src/main/java/com/buddingintents/letsgodutch/feature/ledger/LedgerScreen.kt` |
+| Insights | `feature/insights/src/main/java/com/buddingintents/letsgodutch/feature/insights/InsightsScreen.kt` |
+| Settings | `app/src/main/java/com/buddingintents/letsgodutch/SettingsScreen.kt` |
+| Personal tracker | `app/src/main/java/com/buddingintents/letsgodutch/PersonalExpenseTrackerScreen.kt` |
+| Todo tracker | `app/src/main/java/com/buddingintents/letsgodutch/TodoTasksScreen.kt` |
+| App tour | `app/src/main/java/com/buddingintents/letsgodutch/ui/AppTourOverlay.kt` |
+| Notification receiver | `app/src/main/java/com/buddingintents/letsgodutch/notifications/` |
 
 ## Tech Stack
 
-- Kotlin + Coroutines + Flow
-- Jetpack Compose + Navigation Compose
-- Firebase:
-  - Auth
-  - Realtime Database
-  - Cloud Messaging
-  - Analytics
-  - Crashlytics
+### Language and UI
+
+- Kotlin
+- Coroutines
+- Flow
+- Jetpack Compose
+- Navigation Compose
+- Material 3
+
+### Firebase
+
+- Firebase Authentication
+- Firebase Realtime Database
+- Firebase Cloud Messaging
+- Firebase Analytics
+- Firebase Crashlytics
+
+### Google / Android Libraries
+
+- Credential Manager
+- Google Identity Services
 - Google Mobile Ads SDK
+- Google Play in-app update APIs
+- Google Play review APIs
 
-## Project Modules
+## Authentication Modes
 
-- `app`
-- `core:common`
-- `core:model`
-- `core:data`
-- `core:designsystem`
-- `feature:auth`
-- `feature:groups`
-- `feature:expenses`
-- `feature:ledger`
-- `feature:insights`
-- `feature:settlement`
+### Continue with Google
 
-## Prerequisites
+- Uses Firebase Auth with Google identity
+- Intended for portable identity across reinstalls and device changes
 
-- Android Studio (latest stable recommended)
-- JDK 17 (Android Studio JBR works)
-- Firebase project with:
-  - Google Sign-In enabled
-  - Anonymous Sign-In enabled
-  - Realtime Database created
-  - FCM enabled
-- `google-services.json` placed at `app/google-services.json`
+### Continue with Name
+
+- Uses anonymous Firebase-backed sessions
+- Intended for fast entry and better anonymity
+- The app keeps device-aware anonymous identity hints for same-device return flows when backend rules and identifiers allow it
+
+## Core Business Rules
+
+- Group max members: `50`
+- Currency is INR-first in the current product
+- Invite links are reusable
+- Invite expiry is `7` days unless auto-renew behavior keeps them live
+- Settlement is blocked if the settlement PDF generation fails
+- Successful settlement clears active expenses and balances for the group
+- Ownership transfer happens automatically if the current owner exits and another active member remains
+
+## Notifications
+
+### In-App / Push Notification Path
+
+- The app reads notification records from `notifications/{userId}/{notificationId}`
+- FCM token storage is expected under `fcmTokens/{userId}/{tokenId}`
+- Push delivery itself must come from trusted backend code, not directly from the Android client
+
+### Daily Local Reminder
+
+The app schedules a local daily reminder for unsettled groups:
+
+- time: `10:00 AM` local device time
+- message behavior:
+  - generated only when unsettled groups exist
+  - suppressed when all groups are settled
+- schedule recovery:
+  - app start
+  - reboot
+  - app replace/update
+  - timezone change
+  - manual time change
+
+### Notification Channel
+
+- channel id: `letsgodutch_updates`
+
+More detail: [docs/FIREBASE_TELEMETRY_AND_FCM_SETUP.md](docs/FIREBASE_TELEMETRY_AND_FCM_SETUP.md)
+
+## Firebase Realtime Database Expectations
+
+### User-Owned Paths
+
+Authenticated users, including anonymous users, should be able to read and write their own:
+
+- `users/{userId}/profile`
+- `userGroups/{userId}`
+- `todoTasks/{userId}`
+- `personalExpenses/{userId}`
+- `notifications/{userId}`
+- `fcmTokens/{userId}`
+
+### Shared Group Paths
+
+The app reads or writes shared group data from:
+
+- `groups`
+- `groupMembers/{groupId}`
+- `expenses/{groupId}`
+- `balances/{groupId}`
+- `settlementDispatch/{groupId}`
+
+### Indexes and Query Support
+
+Add Realtime Database indexes for:
+
+- `groups.ownerUserId`
+- `users.profile.identifier`
+- `users.profile.deviceId`
+- `notifications/{userId}.createdAtEpochMs`
+
+### Restore / Migration Note
+
+Device-aware anonymous restore and older membership migration depend on profile and membership reads succeeding during sign-in.
+If production rules block those reads, sign-in may still succeed but historical same-device data may not merge.
 
 ## Deep Links
 
@@ -138,7 +303,49 @@ Supported invite link formats:
 - `https://buddingintents.com/join/<INVITE_CODE>`
 - `http://buddingintents.com/join/<INVITE_CODE>`
 
-## Build & Run
+Validation status as of `2026-04-08`:
+
+- Custom-scheme invite links are working on-device
+- The app correctly parses `https://buddingintents.com/join/<INVITE_CODE>` after that URI reaches `MainActivity`
+- Automatic browser-to-app opening for `https://buddingintents.com/join/<INVITE_CODE>` still needs release-signed Android App Links verification
+
+Detailed notes: [docs/DEEP_LINK_VALIDATION_2026-04-08.md](docs/DEEP_LINK_VALIDATION_2026-04-08.md)
+
+## Local Development Setup
+
+### Prerequisites
+
+- Android Studio, latest stable preferred
+- JDK 17
+- Android SDK with platform tools
+- Firebase project with:
+  - Google sign-in enabled
+  - Anonymous sign-in enabled
+  - Realtime Database created
+  - FCM enabled
+- `app/google-services.json` present locally
+
+### Required Local Files
+
+| File | Purpose | Tracked |
+|---|---|---|
+| `app/google-services.json` | Firebase Android app configuration | No |
+| `local.properties` | local Android SDK and machine paths | No |
+| `keystore.properties` | release signing config | No |
+
+### Local Safety
+
+The repository `.gitignore` already ignores:
+
+- Firebase config files
+- keystores and signing files
+- local Gradle / Android sandbox state
+- release bundles and APKs
+- generic credential files and secrets
+
+## Build Commands
+
+### Debug Build
 
 Windows:
 
@@ -146,67 +353,148 @@ Windows:
 .\gradlew.bat :app:assembleDebug
 ```
 
-macOS/Linux:
+macOS / Linux:
 
 ```bash
 ./gradlew :app:assembleDebug
 ```
 
-Install debug app:
+### Install Debug Build
 
-```bash
-./gradlew :app:installDebug
+```powershell
+.\gradlew.bat :app:installDebug
 ```
+
+### Compile a Specific Module
+
+```powershell
+.\gradlew.bat :feature:auth:compileDebugKotlin
+```
+
+### Release APK
+
+```powershell
+.\gradlew.bat :app:assembleRelease
+```
+
+### Release App Bundle
+
+```powershell
+.\gradlew.bat :app:bundleRelease
+```
+
+## Release Signing
+
+Release artifact tasks fail fast if signing is not configured.
+
+The app accepts signing values from either:
+
+- `keystore.properties` at the repo root
+- environment variables:
+  - `ANDROID_STORE_FILE`
+  - `ANDROID_STORE_PASSWORD`
+  - `ANDROID_KEY_ALIAS`
+  - `ANDROID_KEY_PASSWORD`
+
+### Generate an Upload Keystore
+
+PowerShell helper:
+
+```powershell
+.\scripts\generate-upload-keystore.ps1
+```
+
+The script:
+
+- generates a PKCS12 keystore
+- writes `keystore.properties` unless told not to
+- prints SHA-1 and SHA-256 fingerprints
+- reminds you to register the fingerprints in Firebase
 
 ## Versioning
 
-The app version is auto-derived during build:
+Versioning is derived during the build:
 
 - `versionCode`:
-  - `VERSION_CODE` env var (if provided), else
-  - git commit count (`git rev-list --count HEAD`), else
-  - fallback default
+  - `VERSION_CODE` env var if provided
+  - otherwise git commit count
+  - otherwise a fallback minimum
 - `versionName`:
-  - `VERSION_NAME` env var (if provided), else
-  - `1.2.<versionCode>`
+  - `VERSION_NAME` env var if provided
+  - otherwise `1.2.<versionCode>`
 
-This enables automatic version bumps in CI without manual edits.
+This supports CI-based versioning without editing source files for every release.
 
-## Telemetry
+## Play Store Release Checklist
 
-Settlement funnel events now include:
+Before publishing:
+
+1. Confirm `app/google-services.json` is correct for the production Firebase project and remains untracked.
+2. Confirm release signing is configured through `keystore.properties` or environment variables.
+3. Build the release bundle:
+
+```powershell
+.\gradlew.bat :app:bundleRelease
+```
+
+4. Verify version code and version name.
+5. Review release notes and Play Store `What's New` text.
+6. Confirm no local secrets, bundles, or keystores are staged for commit.
+7. Validate release-signed Android App Links for `buddingintents.com`.
+8. Upload the generated `.aab` to Play Console.
+
+## Telemetry and Monitoring
+
+The app is wired for:
+
+- Firebase Analytics event logging
+- Firebase Crashlytics fatal and non-fatal reporting
+- FCM token registration
+- notification display handling on-device
+
+Examples of settlement funnel events currently called out in project docs:
 
 - `no_expense_settle_attempt`
 - `pdf_generate_fail`
 - `dispatch_fail`
 
-Use Firebase Analytics + Crashlytics dashboards to track and debug settlement failures.
+## Testing and QA Notes
 
-## Firebase Realtime Database Setup Notes
+Recent revamp documentation records:
 
-- Authenticated users, including anonymous users, must be able to read and write their own:
-  - `users/{userId}/profile`
-  - `userGroups/{userId}`
-  - `todoTasks/{userId}`
-  - `personalExpenses/{userId}`
-  - `notifications/{userId}`
-  - `fcmTokens/{userId}`
-- The current app also reads shared group data from:
-  - `groups`
-  - `groupMembers/{groupId}`
-  - `expenses/{groupId}`
-  - `balances/{groupId}`
-  - `settlementDispatch/{groupId}`
-- Device-aware anonymous restore and legacy-user migration depend on profile and membership reads succeeding during sign-in. If your rules block those reads, the app may stay signed in but older data will not merge automatically.
-- Add Realtime Database indexes for the query paths currently used by the app:
-  - `groups.ownerUserId`
-  - `users.profile.identifier`
-  - `users.profile.deviceId`
-  - `notifications/{userId}.createdAtEpochMs`
-- If you tighten rules for production, move cross-user migration and invite-code lookup to a trusted backend or Cloud Functions rather than broad client-side reads.
+- `R-02` first-impression milestone completed and verified
+- groups landing verified across zero, one, and many-group states
+- on-device verification for the new groups hero, denser cards, and per-group settlement pills
+- on-device verification for daily unsettled-group reminder behavior
 
-## Notes
+Revamp references:
 
-- Currency is INR-first in current implementation.
-- Keep Firebase Realtime Database indexes/rules in sync with query paths used by repositories.
-- Avoid committing secrets (`google-services.json`, key files, local env files); use `.gitignore` and CI secret stores.
+- [docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md](docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md)
+- [docs/Revamp/Milestones/R-02-first-impressions-and-navigation.md](docs/Revamp/Milestones/R-02-first-impressions-and-navigation.md)
+
+## Known Limitations and Follow-Ups
+
+- Automatic Android App Links verification for release-signed builds still needs final end-to-end confirmation
+- Settlement preview UI is still routed inline from `LetsGoDutchApp.kt` and has not yet been fully extracted into a feature-owned screen
+- Some active screens still live in `app/` and not in dedicated feature modules
+- Backend push sending is not performed by the Android client and still requires Cloud Functions or another trusted server path
+
+## Related Documentation
+
+- [docs/V1_TECH_SPEC.md](docs/V1_TECH_SPEC.md)
+- [docs/FIREBASE_TELEMETRY_AND_FCM_SETUP.md](docs/FIREBASE_TELEMETRY_AND_FCM_SETUP.md)
+- [docs/DEEP_LINK_VALIDATION_2026-04-08.md](docs/DEEP_LINK_VALIDATION_2026-04-08.md)
+- [docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md](docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md)
+- [docs/Revamp/UI_REVAMP_SUGGESTION_TRACKER.md](docs/Revamp/UI_REVAMP_SUGGESTION_TRACKER.md)
+
+## Security and Repo Hygiene
+
+- Do not commit:
+  - `google-services.json`
+  - `keystore.properties`
+  - keystores or certificates
+  - generated APKs or AABs
+  - local env or credentials files
+- Review `qa_artifacts/` before external sharing if screenshots or captured device data may contain personal information
+- Keep Firebase rules and indexes aligned with repository query paths
+

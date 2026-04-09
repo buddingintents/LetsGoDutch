@@ -20,16 +20,22 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.buddingintents.letsgodutch.core.model.Expense
 import com.buddingintents.letsgodutch.core.model.Money
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -154,6 +160,14 @@ fun LedgerScreen(
                     }
                 }
             }
+
+            item {
+                LedgerBannerAd(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp, bottom = 8.dp),
+                )
+            }
         }
     }
 }
@@ -202,3 +216,30 @@ private fun MemberAvatar(
         }
     }
 }
+
+@Composable
+private fun LedgerBannerAd(
+    modifier: Modifier = Modifier,
+) {
+    val adWidthDp = LocalConfiguration.current.screenWidthDp.coerceAtLeast(320)
+
+    key(adWidthDp) {
+        AndroidView(
+            modifier = modifier,
+            factory = { viewContext ->
+                AdView(viewContext).apply {
+                    adUnitId = LEDGER_BANNER_AD_UNIT_ID
+                    setAdSize(
+                        AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
+                            viewContext,
+                            adWidthDp,
+                        ),
+                    )
+                    loadAd(AdRequest.Builder().build())
+                }
+            },
+        )
+    }
+}
+
+private const val LEDGER_BANNER_AD_UNIT_ID = "ca-app-pub-2020561089374332/7564180349"

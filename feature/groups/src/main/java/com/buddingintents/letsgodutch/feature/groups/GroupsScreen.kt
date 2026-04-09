@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.buddingintents.letsgodutch.core.model.Group
 
+@Deprecated("Use GroupsListScreen as the canonical groups landing surface during the revamp.")
 @Composable
 fun GroupsScreen(
     groups: List<Group>,

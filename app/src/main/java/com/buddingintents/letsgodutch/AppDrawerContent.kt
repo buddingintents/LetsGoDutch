@@ -6,18 +6,19 @@ import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Group
@@ -33,10 +34,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemColors
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,12 +47,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.buddingintents.letsgodutch.core.designsystem.component.AvatarBadge
+import com.buddingintents.letsgodutch.core.designsystem.component.SectionLabel
+import com.buddingintents.letsgodutch.core.designsystem.theme.Charcoal
+import com.buddingintents.letsgodutch.core.designsystem.theme.MintGreen
+import com.buddingintents.letsgodutch.core.designsystem.theme.MintTeal
 import com.buddingintents.letsgodutch.core.designsystem.theme.ThemeMode
 import com.buddingintents.letsgodutch.core.model.UserProfile
 
@@ -72,124 +81,121 @@ fun AppDrawerContent(
     val density = LocalDensity.current
     val versionLabel = remember(context.packageName) { context.resolveVersionLabel() }
     var showThemeMenu by rememberSaveable { mutableStateOf(false) }
-    var themeItemWidthPx by remember { mutableStateOf(0) }
-    Column(modifier = modifier) {
-        // Header: user image and email
-        Row(
+    var themeItemWidthPx by remember { mutableIntStateOf(0) }
+
+    val photoUrl = user?.photoUrl?.takeIf { it.isNotBlank() }
+    val displayName = user?.displayName?.trim()?.takeIf { it.isNotBlank() }
+        ?: user?.email?.substringBefore("@")
+        ?: "User"
+    val email = user?.email?.trim()?.takeIf { it.isNotBlank() } ?: "Shared expenses, cleaner settlements"
+
+    val itemColors = NavigationDrawerItemDefaults.colors(
+        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+        unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+        selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        unselectedTextColor = MaterialTheme.colorScheme.onSurface,
+        selectedIconColor = MaterialTheme.colorScheme.primary,
+        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surface)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .padding(24.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .background(Brush.linearGradient(listOf(MintTeal, Charcoal)))
+                .padding(horizontal = 20.dp, vertical = 24.dp),
         ) {
-            val photoUrl = user?.photoUrl?.takeIf { it.isNotBlank() }
-            val displayName = user?.displayName?.trim()?.takeIf { it.isNotBlank() }
-                ?: user?.email?.substringBefore("@") ?: "User"
-            val email = user?.email?.trim()?.takeIf { it.isNotBlank() } ?: ""
-
-            if (!photoUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = photoUrl,
-                    contentDescription = "Profile photo",
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop,
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+            SectionLabel(text = "Let's Go Dutch")
+            androidx.compose.foundation.layout.Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!photoUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = photoUrl,
+                        contentDescription = "Profile photo",
+                        modifier = Modifier
+                            .size(58.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop,
                     )
+                } else {
+                    AvatarBadge(label = displayName, size = 58.dp)
                 }
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = displayName,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-                if (email.isNotBlank()) {
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = displayName,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = androidx.compose.ui.graphics.Color.White,
+                    )
                     Text(
                         text = email,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.72f),
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }
         }
 
-        HorizontalDivider()
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
 
-        // Menu items
-        val itemColors = NavigationDrawerItemDefaults.colors(
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-            unselectedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-            selectedTextColor = MaterialTheme.colorScheme.onSurface,
-            unselectedTextColor = MaterialTheme.colorScheme.onSurface,
-            selectedIconColor = MaterialTheme.colorScheme.primary,
-            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        SectionLabel(
+            text = "Workspace",
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
         )
-
-        NavigationDrawerItem(
+        DrawerActionItem(
             icon = { Icon(Icons.Default.Group, contentDescription = null) },
-            label = { Text("Your Groups") },
+            label = "Your Groups",
             selected = currentRoute == "groups",
             onClick = onNavigateToGroups,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
             colors = itemColors,
         )
-
-        NavigationDrawerItem(
+        DrawerActionItem(
             icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
-            label = { Text("To-Do Tasks") },
+            label = "To-Do Tasks",
             selected = currentRoute == "todo",
             onClick = onNavigateToTodo,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
             colors = itemColors,
         )
-
-        NavigationDrawerItem(
+        DrawerActionItem(
             icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = null) },
-            label = { Text("Self Expenses") },
+            label = "Self Expenses",
             selected = currentRoute == "self_expenses",
             onClick = onNavigateToSelfExpenses,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
             colors = itemColors,
         )
-
-        NavigationDrawerItem(
+        DrawerActionItem(
             icon = { Icon(Icons.Default.Add, contentDescription = null) },
-            label = { Text("Create Group") },
+            label = "Create Group",
             selected = false,
             onClick = onCreateGroupClick,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
             colors = itemColors,
         )
-
-        NavigationDrawerItem(
+        DrawerActionItem(
             icon = { Icon(Icons.Default.GroupAdd, contentDescription = null) },
-            label = { Text("Join Group") },
+            label = "Join Group",
             selected = false,
             onClick = onJoinGroupClick,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
             colors = itemColors,
         )
 
         if (onThemeModeChange != null) {
+            SectionLabel(
+                text = "Preferences",
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
+            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(NavigationDrawerItemDefaults.ItemPadding),
+                    .padding(horizontal = 12.dp),
             ) {
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Palette, contentDescription = null) },
@@ -204,6 +210,7 @@ fun AppDrawerContent(
                     },
                     selected = false,
                     onClick = { showThemeMenu = true },
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
                         .fillMaxWidth()
                         .onGloballyPositioned { coordinates ->
@@ -215,9 +222,14 @@ fun AppDrawerContent(
                     expanded = showThemeMenu,
                     onDismissRequest = { showThemeMenu = false },
                     modifier = if (themeItemWidthPx > 0) {
-                        Modifier.width(with(density) { themeItemWidthPx.toDp() })
+                        Modifier
+                            .width(with(density) { themeItemWidthPx.toDp() })
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(MaterialTheme.colorScheme.surface)
                     } else {
                         Modifier
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(MaterialTheme.colorScheme.surface)
                     },
                 ) {
                     DropdownMenuItem(
@@ -248,32 +260,52 @@ fun AppDrawerContent(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.size(16.dp))
 
-        NavigationDrawerItem(
+        SectionLabel(
+            text = "Account",
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
+        )
+        DrawerActionItem(
             icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-            label = { Text("Settings") },
+            label = "Settings",
             selected = currentRoute == "settings",
             onClick = onSettingsClick,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
             colors = itemColors,
         )
-
-        NavigationDrawerItem(
+        DrawerActionItem(
             icon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null) },
-            label = { Text("Sign Out") },
+            label = "Sign Out",
             selected = false,
             onClick = onSignOut,
-            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
             colors = itemColors,
         )
         Text(
             text = versionLabel,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 14.dp),
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp, top = 8.dp),
         )
     }
+}
+
+@Composable
+private fun DrawerActionItem(
+    icon: @Composable () -> Unit,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    colors: NavigationDrawerItemColors,
+) {
+    NavigationDrawerItem(
+        icon = icon,
+        label = { Text(label) },
+        selected = selected,
+        onClick = onClick,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+        colors = colors,
+    )
 }
 
 private fun ThemeMode.label(): String = when (this) {

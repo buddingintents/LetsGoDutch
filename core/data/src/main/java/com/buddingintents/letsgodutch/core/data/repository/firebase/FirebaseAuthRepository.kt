@@ -14,6 +14,7 @@ import com.buddingintents.letsgodutch.core.model.Role
 import com.buddingintents.letsgodutch.core.model.UserProfile
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.security.MessageDigest
 import java.util.Locale
 
 class FirebaseAuthRepository(
@@ -75,18 +77,67 @@ class FirebaseAuthRepository(
 
     override suspend fun signInWithGoogleIdToken(idToken: String): Result<UserProfile> {
         return runCatching {
+            val deviceContext = context.currentDeviceContext()
             val credential = GoogleAuthProvider.getCredential(idToken, null)
-            val authResult = auth.signInWithCredential(credential).await()
-            val firebaseUser = authResult.user ?: error("Google sign-in completed but user is null")
-            anonymousSessionStore.clearHiddenAnonymousSession()
+            val existingAnonymousUser = auth.currentUser?.takeIf { it.isAnonymous }
+            val hiddenAnonymousUserId = anonymousSessionStore.hiddenAnonymousUserId()
+            val mergedSourceUserIds = linkedSetOf<String>()
+            val firebaseUser = if (existingAnonymousUser != null) {
+                try {
+                    existingAnonymousUser.linkWithCredential(credential).await().user
+                        ?: error("Google account link completed but user is null")
+                } catch (_: FirebaseAuthUserCollisionException) {
+                    mergedSourceUserIds += existingAnonymousUser.uid
+                    auth.signInWithCredential(credential).await().user
+                        ?: error("Google sign-in completed but user is null")
+                }
+            } else {
+                auth.signInWithCredential(credential).await().user
+                    ?: error("Google sign-in completed but user is null")
+            }
             val profile = syncAndPersistProfile(
                 firebaseUser = firebaseUser,
-                deviceContext = context.currentDeviceContext(),
+                deviceContext = deviceContext,
                 strictPersist = true,
             )
-            runCatching { syncGroupMemberProfile(profile) }
-            currentUserState.value = profile
-            profile
+            var mergedAnyIdentityData = false
+            mergedSourceUserIds
+                .filter { it != profile.userId }
+                .forEach { fromUserId ->
+                    mergedAnyIdentityData = true
+                    mergeAllDataFromTo(
+                        fromUserId = fromUserId,
+                        toProfile = profile,
+                    )
+                }
+            if (
+                hiddenAnonymousUserId != null &&
+                hiddenAnonymousUserId != profile.userId &&
+                hiddenAnonymousUserId !in mergedSourceUserIds
+            ) {
+                runCatching {
+                    mergedAnyIdentityData = true
+                    mergeAllDataFromTo(
+                        fromUserId = hiddenAnonymousUserId,
+                        toProfile = profile,
+                    )
+                }
+            }
+            anonymousSessionStore.clearHiddenAnonymousSession()
+            val resolvedProfile = if (mergedAnyIdentityData) {
+                syncAndPersistProfile(
+                    firebaseUser = firebaseUser,
+                    preferredDisplayName = profile.displayName,
+                    preferredEmail = profile.email,
+                    deviceContext = deviceContext,
+                    strictPersist = true,
+                )
+            } else {
+                profile
+            }
+            runCatching { syncGroupMemberProfile(resolvedProfile) }
+            currentUserState.value = resolvedProfile
+            resolvedProfile
         }
     }
 
@@ -95,13 +146,18 @@ class FirebaseAuthRepository(
             val normalizedName = displayName.trim()
             require(normalizedName.isNotBlank()) { "Display name is required." }
             val deviceContext = context.currentDeviceContext()
+            val hiddenAnonymousUserId = anonymousSessionStore.hiddenAnonymousUserId()
+            val currentAnonymousUser = auth.currentUser?.takeIf { it.isAnonymous }
 
-            val firebaseUser = auth.currentUser
-                ?.takeIf { it.isAnonymous }
-                ?: run {
+            val firebaseUser = when {
+                hiddenAnonymousUserId != null && currentAnonymousUser?.uid == hiddenAnonymousUserId ->
+                    currentAnonymousUser ?: error("Hidden anonymous session is unavailable.")
+                currentAnonymousUser != null -> currentAnonymousUser
+                else -> {
                     val authResult = auth.signInAnonymously().await()
                     authResult.user ?: error("Anonymous sign-in completed but user is null")
                 }
+            }
             runCatching {
                 val profileUpdate = UserProfileChangeRequest.Builder()
                     .setDisplayName(normalizedName)
@@ -123,7 +179,7 @@ class FirebaseAuthRepository(
                 identifier = profile.identifier,
                 userId = profile.userId,
             )
-            anonymousSessionStore.clearHiddenAnonymousSession(userId = firebaseUser.uid)
+            anonymousSessionStore.clearHiddenAnonymousSession()
             anonymousSessionStore.recordAnonymousDisplayName(normalizedName)
             val refreshedProfile = syncAndPersistProfile(
                 firebaseUser = firebaseUser,
@@ -323,10 +379,33 @@ class FirebaseAuthRepository(
         val snapshotDeviceId = profileSnapshot.childString("deviceId").trim()
         val snapshotDeviceModel = profileSnapshot.childString("deviceModel").trim()
         val snapshotCountry = profileSnapshot.childString("country").trim()
+        val snapshotPublicAccountId = profileSnapshot.childString("publicAccountId").trim()
+        val snapshotPrimaryAuthProvider = profileSnapshot.childString("primaryAuthProvider").trim()
+        val snapshotLinkedProviders = profileSnapshot.childStringList("linkedProviders")
+        val snapshotUpgradedFromAnonymousAtEpochMs = profileSnapshot.childLongNullable("upgradedFromAnonymousAtEpochMs")
+        val snapshotWasAnonymous = profileSnapshot?.child("isAnonymous")?.getValue(Boolean::class.java) == true
         val now = System.currentTimeMillis()
 
         val firebaseDisplayName = firebaseUser.displayName.orEmpty().trim()
         val firebasePhotoUrl = firebaseUser.photoUrl?.toString().orEmpty().trim()
+        val providerIds = firebaseUser.providerData
+            .mapNotNull { it.providerId?.trim() }
+            .filter { it.isNotBlank() && it != FIREBASE_PROVIDER_ID }
+            .distinct()
+        val linkedProviders = when {
+            firebaseUser.isAnonymous -> listOf(PROVIDER_ANONYMOUS)
+            providerIds.isNotEmpty() -> providerIds
+            snapshotLinkedProviders.isNotEmpty() -> snapshotLinkedProviders
+            else -> emptyList()
+        }
+        val primaryAuthProvider = when {
+            firebaseUser.isAnonymous -> PROVIDER_ANONYMOUS
+            GOOGLE_PROVIDER_ID in linkedProviders -> GOOGLE_PROVIDER_ID
+            linkedProviders.isNotEmpty() -> linkedProviders.first()
+            else -> snapshotPrimaryAuthProvider
+        }
+        val upgradedFromAnonymousAtEpochMs = snapshotUpgradedFromAnonymousAtEpochMs
+            ?: if (snapshotWasAnonymous && !firebaseUser.isAnonymous) now else null
 
         val resolvedDisplayName = firstNotBlank(
             preferredDisplayName.trim(),
@@ -344,6 +423,18 @@ class FirebaseAuthRepository(
             firebasePhotoUrl,
             snapshotPhotoUrl,
         ).ifBlank { null }
+        val publicAccountSeed = firstNotBlank(
+            snapshotIdentifier,
+            snapshotDeviceId,
+            deviceContext.deviceId.trim(),
+            snapshotEmail.lowercase(Locale.US),
+            firebaseUser.canonicalEmail().lowercase(Locale.US),
+            firebaseUser.uid,
+        )
+        val resolvedPublicAccountId = firstNotBlank(
+            snapshotPublicAccountId,
+            generatePublicAccountId(publicAccountSeed),
+        )
 
         return UserProfile(
             userId = firebaseUser.uid,
@@ -356,6 +447,10 @@ class FirebaseAuthRepository(
             deviceId = firstNotBlank(deviceContext.deviceId, snapshotDeviceId, snapshotIdentifier),
             deviceModel = firstNotBlank(deviceContext.deviceModel, snapshotDeviceModel),
             country = firstNotBlank(deviceContext.country, snapshotCountry),
+            primaryAuthProvider = primaryAuthProvider,
+            linkedProviders = linkedProviders,
+            upgradedFromAnonymousAtEpochMs = upgradedFromAnonymousAtEpochMs,
+            publicAccountId = resolvedPublicAccountId,
         )
     }
 
@@ -373,42 +468,71 @@ class FirebaseAuthRepository(
         )
 
         if (boundUserId.isBlank() || boundUserId == currentProfile.userId) return
-
-        val updates = mutableMapOf<String, Any?>()
-        mergeGroupMemberships(
+        mergeAllDataFromTo(
             fromUserId = boundUserId,
             toProfile = currentProfile,
+        )
+    }
+
+    private suspend fun mergeAllDataFromTo(
+        fromUserId: String,
+        toProfile: UserProfile,
+    ) {
+        val normalizedFromUserId = fromUserId.trim()
+        if (normalizedFromUserId.isBlank() || normalizedFromUserId == toProfile.userId) return
+
+        val sourceProfileSnapshot = runCatching {
+            database.reference.child("users").child(normalizedFromUserId).child("profile").get().await()
+        }.getOrNull()
+        val targetProfileSnapshot = runCatching {
+            database.reference.child("users").child(toProfile.userId).child("profile").get().await()
+        }.getOrNull()
+        val updates = mutableMapOf<String, Any?>()
+        mergeGroupMemberships(
+            fromUserId = normalizedFromUserId,
+            toProfile = toProfile,
             updates = updates,
         )
         mergeUserOwnedNode(
             rootPath = "todoTasks",
-            fromUserId = boundUserId,
-            toUserId = currentProfile.userId,
+            fromUserId = normalizedFromUserId,
+            toUserId = toProfile.userId,
             updates = updates,
             userIdFieldName = "userId",
         )
         mergeUserOwnedNode(
             rootPath = "personalExpenses",
-            fromUserId = boundUserId,
-            toUserId = currentProfile.userId,
+            fromUserId = normalizedFromUserId,
+            toUserId = toProfile.userId,
             updates = updates,
             userIdFieldName = "userId",
         )
         mergeUserOwnedNode(
             rootPath = "notifications",
-            fromUserId = boundUserId,
-            toUserId = currentProfile.userId,
+            fromUserId = normalizedFromUserId,
+            toUserId = toProfile.userId,
             updates = updates,
         )
         mergeUserOwnedNode(
             rootPath = "fcmTokens",
-            fromUserId = boundUserId,
-            toUserId = currentProfile.userId,
+            fromUserId = normalizedFromUserId,
+            toUserId = toProfile.userId,
             updates = updates,
         )
-        updates["$ANONYMOUS_DEVICES_NODE/$identifier/userId"] = currentProfile.userId
-        updates["$ANONYMOUS_DEVICES_NODE/$identifier/identifier"] = identifier
-        updates["$ANONYMOUS_DEVICES_NODE/$identifier/updatedAtEpochMs"] = System.currentTimeMillis()
+        val identifier = toProfile.identifier.trim().ifBlank { toProfile.deviceId.trim() }
+        if (identifier.isNotBlank()) {
+            updates["$ANONYMOUS_DEVICES_NODE/$identifier/userId"] = toProfile.userId
+            updates["$ANONYMOUS_DEVICES_NODE/$identifier/identifier"] = identifier
+            updates["$ANONYMOUS_DEVICES_NODE/$identifier/updatedAtEpochMs"] = System.currentTimeMillis()
+        }
+        resolveMergedPublicAccountId(
+            sourceProfileSnapshot = sourceProfileSnapshot,
+            targetProfileSnapshot = targetProfileSnapshot,
+            fallbackPublicAccountId = toProfile.publicAccountId,
+        ).takeIf { it.isNotBlank() }?.let { resolvedPublicAccountId ->
+            updates["users/${toProfile.userId}/profile/publicAccountId"] = resolvedPublicAccountId
+        }
+        updates["users/$normalizedFromUserId/profile"] = null
 
         if (updates.isNotEmpty()) {
             database.reference.updateChildren(updates).await()
@@ -766,8 +890,12 @@ private fun UserProfile.toFirebaseProfileMap(): Map<String, Any> {
         "deviceId" to deviceId,
         "deviceModel" to deviceModel,
         "country" to country,
+        "publicAccountId" to publicAccountId,
+        "primaryAuthProvider" to primaryAuthProvider,
+        "linkedProviders" to linkedProviders,
     )
     photoUrl?.takeIf { it.isNotBlank() }?.let { payload["photoUrl"] = it }
+    upgradedFromAnonymousAtEpochMs?.let { payload["upgradedFromAnonymousAtEpochMs"] = it }
     return payload
 }
 
@@ -778,6 +906,13 @@ private fun DataSnapshot?.childString(key: String): String {
 private fun DataSnapshot?.childLongNullable(key: String): Long? {
     return this?.child(key)?.getValue(Long::class.java)
         ?: this?.child(key)?.getValue(Int::class.java)?.toLong()
+}
+
+private fun DataSnapshot?.childStringList(key: String): List<String> {
+    return this?.child(key)?.children
+        ?.mapNotNull { it.getValue(String::class.java)?.trim()?.takeIf(String::isNotBlank) }
+        ?.distinct()
+        .orEmpty()
 }
 
 private fun DataSnapshot.toFirebasePayload(
@@ -815,6 +950,28 @@ private fun Any?.toFirebaseValue(): Any? {
 
 private fun firstNotBlank(vararg values: String): String {
     return values.firstOrNull { it.isNotBlank() }.orEmpty()
+}
+
+private fun resolveMergedPublicAccountId(
+    sourceProfileSnapshot: DataSnapshot?,
+    targetProfileSnapshot: DataSnapshot?,
+    fallbackPublicAccountId: String,
+): String {
+    val sourcePublicAccountId = sourceProfileSnapshot.childString("publicAccountId").trim()
+    val targetPublicAccountId = targetProfileSnapshot.childString("publicAccountId").trim()
+    val normalizedFallback = fallbackPublicAccountId.trim()
+
+    return when {
+        sourcePublicAccountId.isBlank() && targetPublicAccountId.isBlank() -> normalizedFallback
+        sourcePublicAccountId.isBlank() -> targetPublicAccountId
+        targetPublicAccountId.isBlank() -> sourcePublicAccountId
+        sourcePublicAccountId == targetPublicAccountId -> targetPublicAccountId
+        else -> {
+            val sourceCreatedAt = sourceProfileSnapshot.childLongNullable("createdAtEpochMs") ?: Long.MAX_VALUE
+            val targetCreatedAt = targetProfileSnapshot.childLongNullable("createdAtEpochMs") ?: Long.MAX_VALUE
+            if (sourceCreatedAt <= targetCreatedAt) sourcePublicAccountId else targetPublicAccountId
+        }
+    }
 }
 
 private inline fun <T : Any, R : Any> Iterable<T>.associateNotNull(
@@ -889,4 +1046,29 @@ private fun mapAnonymousSignInError(error: Throwable): Throwable {
     )
 }
 
+private fun generatePublicAccountId(seed: String): String {
+    val normalizedSeed = seed.trim().lowercase(Locale.US)
+    if (normalizedSeed.isBlank()) return ""
+
+    val digest = MessageDigest.getInstance("SHA-256")
+        .digest(normalizedSeed.toByteArray(Charsets.UTF_8))
+    val alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    val accountId = StringBuilder(PUBLIC_ACCOUNT_ID_LENGTH)
+
+    digest.forEach { byte ->
+        if (accountId.length >= PUBLIC_ACCOUNT_ID_LENGTH) return@forEach
+        accountId.append(alphabet[(byte.toInt() and 0xFF) % alphabet.length])
+    }
+
+    while (accountId.length < PUBLIC_ACCOUNT_ID_LENGTH) {
+        accountId.append(alphabet[accountId.length % alphabet.length])
+    }
+
+    return accountId.toString()
+}
+
 private const val ANONYMOUS_DEVICES_NODE = "anonymousDevices"
+private const val PUBLIC_ACCOUNT_ID_LENGTH = 8
+private const val PROVIDER_ANONYMOUS = "anonymous"
+private const val GOOGLE_PROVIDER_ID = "google.com"
+private const val FIREBASE_PROVIDER_ID = "firebase"

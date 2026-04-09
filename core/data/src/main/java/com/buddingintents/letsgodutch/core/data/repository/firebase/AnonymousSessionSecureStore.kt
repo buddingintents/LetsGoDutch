@@ -36,6 +36,11 @@ internal class AnonymousSessionSecureStore(
             .apply()
     }
 
+    fun hiddenAnonymousUserId(): String? {
+        val stored = prefs.getString(KEY_HIDDEN_ANON_USER_ID, "").orEmpty().trim()
+        return stored.takeIf { it.isNotBlank() }
+    }
+
     fun isAnonymousSessionHidden(userId: String): Boolean {
         val normalizedUserId = userId.trim()
         if (normalizedUserId.isBlank()) return false

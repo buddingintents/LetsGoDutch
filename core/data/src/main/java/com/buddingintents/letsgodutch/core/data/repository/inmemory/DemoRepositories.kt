@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 
 private object DemoStore {
-    private const val groupId = "group_weekend"
     private const val ownerId = "user_owner"
 
     val user = MutableStateFlow<UserProfile?>(
@@ -40,74 +39,18 @@ private object DemoStore {
             deviceId = "demo-device",
             deviceModel = "InMemory Device",
             country = "India",
+            primaryAuthProvider = "google.com",
+            linkedProviders = listOf("google.com"),
         ),
     )
     val recentAnonymousDisplayNames = MutableStateFlow<List<String>>(emptyList())
     val anonymousProfilesByDeviceId = mutableMapOf<String, UserProfile>()
 
-    val groups = MutableStateFlow(
-        listOf(
-            Group(
-                groupId = groupId,
-                name = "Goa Trip",
-                ownerUserId = ownerId,
-                createdAtEpochMs = System.currentTimeMillis(),
-                description = "Friends trip planning",
-                inviteCode = "GOA123",
-                inviteExpiryEpochMs = System.currentTimeMillis() + INVITE_EXPIRY_WEEK_MS,
-                autoRenewInvite = true,
-                selectAllMembersByDefaultForExpenses = false,
-            ),
-        ),
-    )
+    val groups = MutableStateFlow<List<Group>>(emptyList())
 
-    val membersByGroup = mutableMapOf(
-        groupId to MutableStateFlow(
-            listOf(
-                Member(
-                    userId = ownerId,
-                    displayName = "Aditi",
-                    email = "aditi@example.com",
-                    identifier = "demo-device",
-                    joinedAtEpochMs = System.currentTimeMillis() - 500_000L,
-                    role = Role.OWNER,
-                ),
-                Member(
-                    userId = "user_2",
-                    displayName = "Rahul",
-                    email = "rahul@example.com",
-                    joinedAtEpochMs = System.currentTimeMillis() - 300_000L,
-                ),
-                Member(
-                    userId = "user_3",
-                    displayName = "Kiran",
-                    email = "kiran@example.com",
-                    joinedAtEpochMs = System.currentTimeMillis() - 100_000L,
-                ),
-            ),
-        ),
-    )
+    val membersByGroup = mutableMapOf<String, MutableStateFlow<List<Member>>>()
 
-    val expensesByGroup = mutableMapOf(
-        groupId to MutableStateFlow(
-            listOf(
-                Expense(
-                    expenseId = "e1",
-                    groupId = groupId,
-                    title = "Dinner",
-                    amountPaise = 3_000_00,
-                    paymentDate = "01-01-2026",
-                    paidByUserId = ownerId,
-                    participantUserIds = listOf(ownerId, "user_2", "user_3"),
-                    splitType = SplitType.EQUAL,
-                    shares = emptyList(),
-                    createdByUserId = ownerId,
-                    createdAtEpochMs = System.currentTimeMillis() - 50_000L,
-                    updatedAtEpochMs = System.currentTimeMillis() - 50_000L,
-                ),
-            ),
-        ),
-    )
+    val expensesByGroup = mutableMapOf<String, MutableStateFlow<List<Expense>>>()
 
     val todoByUser = mutableMapOf(
         ownerId to MutableStateFlow(
@@ -156,16 +99,31 @@ class InMemoryAuthRepository : AuthRepository {
     }
 
     override suspend fun signInWithGoogleIdToken(idToken: String): Result<UserProfile> {
-        val value = DemoStore.user.value ?: UserProfile(
-            userId = "user_${System.currentTimeMillis()}",
-            displayName = "New User",
-            email = "newuser@example.com",
-            createdAtEpochMs = System.currentTimeMillis(),
-            identifier = "demo-device",
-            deviceId = "demo-device",
-            deviceModel = "InMemory Device",
-            country = "India",
-        ).also { DemoStore.user.value = it }
+        val now = System.currentTimeMillis()
+        val current = DemoStore.user.value
+        val value = if (current != null) {
+            current.copy(
+                email = current.email.ifBlank { "demo.user@example.com" },
+                isAnonymous = false,
+                primaryAuthProvider = "google.com",
+                linkedProviders = listOf("google.com"),
+                upgradedFromAnonymousAtEpochMs = current.upgradedFromAnonymousAtEpochMs
+                    ?: now.takeIf { current.isAnonymous },
+            )
+        } else {
+            UserProfile(
+                userId = "user_$now",
+                displayName = "New User",
+                email = "newuser@example.com",
+                createdAtEpochMs = now,
+                identifier = "demo-device",
+                deviceId = "demo-device",
+                deviceModel = "InMemory Device",
+                country = "India",
+                primaryAuthProvider = "google.com",
+                linkedProviders = listOf("google.com"),
+            )
+        }.also { DemoStore.user.value = it }
         return Result.success(value)
     }
 
@@ -191,6 +149,8 @@ class InMemoryAuthRepository : AuthRepository {
                     deviceId = deviceId,
                     deviceModel = "InMemory Device",
                     country = "India",
+                    primaryAuthProvider = "anonymous",
+                    linkedProviders = listOf("anonymous"),
                 )
             }
             DemoStore.anonymousProfilesByDeviceId[deviceId] = profile
@@ -339,7 +299,8 @@ class InMemoryGroupRepository : GroupRepository {
         val membersFlow = DemoStore.membersByGroup[group.groupId]
             ?: return Result.failure(IllegalStateException("Group member data missing"))
         val activeMembers = membersFlow.value.filter { it.active }
-        val alreadyJoined = activeMembers.any { it.userId == userId }
+        val identityKeys = demoIdentityKeys(userId)
+        val alreadyJoined = activeMembers.any { it.matchesIdentityKeys(identityKeys) }
         val claimableMembers = if (alreadyJoined) {
             emptyList()
         } else {
@@ -949,6 +910,25 @@ private fun Group.renewInvite(now: Long = System.currentTimeMillis()): Group {
         inviteCode = "INV${now.toString().takeLast(6)}",
         inviteExpiryEpochMs = now + INVITE_EXPIRY_WEEK_MS,
     )
+}
+
+private fun demoIdentityKeys(userId: String): Set<String> {
+    val profile = DemoStore.user.value?.takeIf { it.userId == userId }
+    return linkedSetOf(
+        userId.trim(),
+        profile?.identifier.orEmpty().trim(),
+        profile?.deviceId.orEmpty().trim(),
+        profile?.email.orEmpty().trim().lowercase(),
+    ).filter { it.isNotBlank() }.toSet()
+}
+
+private fun Member.matchesIdentityKeys(identityKeys: Set<String>): Boolean {
+    if (identityKeys.isEmpty()) return false
+
+    val normalizedEmail = email.trim().lowercase()
+    return userId.trim() in identityKeys ||
+        identifier.trim() in identityKeys ||
+        (normalizedEmail.isNotBlank() && normalizedEmail in identityKeys)
 }
 
 private const val INVITE_EXPIRY_WEEK_MS = 7L * 24L * 60L * 60L * 1000L
