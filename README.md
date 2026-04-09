@@ -16,7 +16,21 @@ The app is INR-first today, supports both Google sign-in and name-only anonymous
 | UI Stack | Jetpack Compose + Material 3 |
 | Architecture | multi-module app with `core:*` and `feature:*` modules |
 | Backend | Firebase Auth + Realtime Database + FCM |
-| Current UI Phase | `Fresh Mint` revamp, `R-02` completed and verified, `R-03` next |
+| Current UI Phase | `Fresh Mint` revamp, Phase 1 complete, `R-02` completed and verified, `R-03` next, partial `R-04` polish already landed in ledger and insights |
+
+## Revamp Status And Audit Note
+
+The revamp source of truth is [docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md](docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md).
+
+As of `2026-04-10`:
+
+- Phase 1 is complete
+- Phase 2 UI revamp has `R-02` completed and verified
+- `R-03` is the next formal milestone
+- partial `R-04` polish already exists in ledger and insights
+- both Google sign-in and anonymous name-based entry are supported
+
+The audit artifact at [docs/Revamp/Audit/LGD_UIAudit_Roadmap.html](docs/Revamp/Audit/LGD_UIAudit_Roadmap.html) is useful as a recommendation backlog, but it is inference-based from documentation, commit history, and revamp prompts. Treat it as a prioritization aid, not as a source-reviewed implementation checklist.
 
 ## What the App Does
 
@@ -101,6 +115,16 @@ Recent updates to the post-login groups landing surface include:
   - package replace
   - time change
   - timezone change
+
+## Audit-Driven Follow-Ups
+
+Current high-value follow-ups called out by the audit backlog:
+
+- groups landing balance summary and per-group balance context
+- real insights charts instead of placeholder analytics
+- theme cleanup: remove hardcoded colors, finish dark-mode wiring, and use branded primary CTAs consistently
+- edge-to-edge cleanup with status-bar insets on all major scaffolds
+- settings and settlement polish: account ID visibility, richer payment rows, and better success feedback
 
 ## Play Store Listing Draft
 
@@ -463,9 +487,12 @@ Examples of settlement funnel events currently called out in project docs:
 Recent revamp documentation records:
 
 - `R-02` first-impression milestone completed and verified
+- revamp source of truth remains the master plan, with `R-03` next and partial `R-04` polish already landed early
 - groups landing verified across zero, one, and many-group states
 - on-device verification for the new groups hero, denser cards, and per-group settlement pills
 - on-device verification for daily unsettled-group reminder behavior
+- [docs/Revamp/Audit/LGD_UIAudit_Roadmap.html](docs/Revamp/Audit/LGD_UIAudit_Roadmap.html) captures inferred UI gaps and roadmap ideas from the documentation state at audit time
+- [docs/Revamp/Audit/LGD_UI_AUDIT_ASSESSMENT_2026-04-10.md](docs/Revamp/Audit/LGD_UI_AUDIT_ASSESSMENT_2026-04-10.md) translates that audit into a criticality/usefulness/complexity/solo-feasibility matrix
 
 Revamp references:
 
@@ -486,6 +513,8 @@ Revamp references:
 - [docs/DEEP_LINK_VALIDATION_2026-04-08.md](docs/DEEP_LINK_VALIDATION_2026-04-08.md)
 - [docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md](docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md)
 - [docs/Revamp/UI_REVAMP_SUGGESTION_TRACKER.md](docs/Revamp/UI_REVAMP_SUGGESTION_TRACKER.md)
+- [docs/Revamp/Audit/LGD_UIAudit_Roadmap.html](docs/Revamp/Audit/LGD_UIAudit_Roadmap.html)
+- [docs/Revamp/Audit/LGD_UI_AUDIT_ASSESSMENT_2026-04-10.md](docs/Revamp/Audit/LGD_UI_AUDIT_ASSESSMENT_2026-04-10.md)
 
 ## Security and Repo Hygiene
 
@@ -497,4 +526,3 @@ Revamp references:
   - local env or credentials files
 - Review `qa_artifacts/` before external sharing if screenshots or captured device data may contain personal information
 - Keep Firebase rules and indexes aligned with repository query paths
-
