@@ -51,6 +51,14 @@ class LetsGoDutchMessagingService : FirebaseMessagingService() {
     }
 
     private fun showLocalNotification(message: RemoteMessage) {
+        val notificationIdValue = message.data["notificationId"]
+            ?.takeIf { it.isNotBlank() }
+            ?: message.messageId
+            ?: Random.nextInt().toString()
+        if (!NotificationDisplayDeduper.tryAcquire(this, notificationIdValue)) {
+            return
+        }
+
         val title = message.notification?.title
             ?: message.data["title"]
             ?: getString(R.string.app_name)
@@ -88,7 +96,7 @@ class LetsGoDutchMessagingService : FirebaseMessagingService() {
             return
         }
         val manager = NotificationManagerCompat.from(this)
-        manager.notify(Random.nextInt(), builder.build())
+        manager.notify(notificationIdValue.hashCode(), builder.build())
         val summaryBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.app_name))

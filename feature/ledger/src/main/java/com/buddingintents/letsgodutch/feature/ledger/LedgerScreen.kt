@@ -33,6 +33,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.buddingintents.letsgodutch.core.model.Expense
 import com.buddingintents.letsgodutch.core.model.Money
+import com.buddingintents.letsgodutch.core.model.SettlementUpiTransaction
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
@@ -45,6 +46,7 @@ import java.util.Locale
 @Composable
 fun LedgerScreen(
     expenses: List<Expense>,
+    settlementActivities: List<SettlementUpiTransaction>,
     memberNameById: Map<String, String>,
     memberPhotoUrlById: Map<String, String?>,
     allowDelete: Boolean = false,
@@ -120,6 +122,15 @@ fun LedgerScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                             )
+                            if (expense.note.isNotBlank()) {
+                                Text(
+                                    text = expense.note,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                         Row(
                             modifier = Modifier.weight(paidByWeight),
@@ -161,6 +172,60 @@ fun LedgerScreen(
                 }
             }
 
+            if (settlementActivities.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Recorded Payments",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 10.dp, bottom = 2.dp),
+                    )
+                }
+
+                items(
+                    settlementActivities,
+                    key = { activity -> activity.activityId.ifBlank { "${activity.transferKey}_${activity.handledAtEpochMs}" } },
+                ) { activity ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "${activity.payerName.ifBlank { "Member" }} -> ${activity.receiverName.ifBlank { "Member" }}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Text(
+                                    text = Money(activity.amountPaise).toRupeeDisplay(),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    textAlign = TextAlign.End,
+                                )
+                            }
+                            Text(
+                                text = "${activity.status.displayLabel} | ${activity.handledAtEpochMs.toLedgerDateTime()}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            val reference = buildSettlementReference(activity)
+                            if (reference.isNotBlank()) {
+                                Text(
+                                    text = reference,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             item {
                 LedgerBannerAd(
                     modifier = Modifier
@@ -174,6 +239,7 @@ fun LedgerScreen(
 
 private val backendDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.US)
 private val uiDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MMM", Locale.US)
+private val ledgerDateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd MMM, hh:mm a", Locale.US)
 
 private fun String.toUiPaymentDate(fallbackEpochMs: Long): String {
     val parsed = runCatching { LocalDate.parse(this.trim(), backendDateFormatter) }.getOrNull()
@@ -181,6 +247,24 @@ private fun String.toUiPaymentDate(fallbackEpochMs: Long): String {
         .atZone(ZoneId.systemDefault())
         .toLocalDate()
     return date.format(uiDateFormatter)
+}
+
+private fun Long.toLedgerDateTime(): String {
+    return Instant.ofEpochMilli(this)
+        .atZone(ZoneId.systemDefault())
+        .toLocalDateTime()
+        .format(ledgerDateTimeFormatter)
+}
+
+private fun buildSettlementReference(activity: SettlementUpiTransaction): String {
+    val parts = mutableListOf<String>()
+    activity.paymentAppName.takeIf { it.isNotBlank() }?.let { parts += "App: $it" }
+    if (activity.statusConfirmedByUser) {
+        parts += "User confirmed"
+    }
+    activity.bestReference.takeIf { it.isNotBlank() }?.let { parts += "Ref: $it" }
+    activity.responseCode.takeIf { it.isNotBlank() }?.let { parts += "Code: $it" }
+    return parts.joinToString(" | ")
 }
 
 @Composable

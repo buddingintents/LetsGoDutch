@@ -12,4 +12,5 @@ data class Member(
     val joinedAtEpochMs: Long,
     val role: Role = Role.MEMBER,
     val active: Boolean = true,
+    val upiId: String = "",
 )

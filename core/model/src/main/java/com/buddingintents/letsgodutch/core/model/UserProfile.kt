@@ -18,6 +18,7 @@ data class UserProfile(
     val linkedProviders: List<String> = emptyList(),
     val upgradedFromAnonymousAtEpochMs: Long? = null,
     val publicAccountId: String = "",
+    val upiId: String = "",
 ) {
     val displayId: String
         get() = publicAccountId.trim().ifBlank { userId.take(8).uppercase() }

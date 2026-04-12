@@ -39,6 +39,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.buddingintents.letsgodutch.core.model.PersonalExpenseEntry
+import com.buddingintents.letsgodutch.core.model.formatIndianCurrency
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Instant
@@ -47,7 +48,6 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.abs
 
 @Composable
 fun PersonalExpenseTrackerScreen(
@@ -488,11 +488,7 @@ private fun Long.toLocalDate(): LocalDate {
 }
 
 private fun Long.toInrDisplay(): String {
-    val absPaise = abs(this)
-    val rupees = absPaise / 100
-    val paise = absPaise % 100
-    val prefix = if (this < 0L) "-\u20B9" else "\u20B9"
-    return "$prefix$rupees.${paise.toString().padStart(2, '0')}"
+    return formatIndianCurrency(this)
 }
 
 private fun String.toPaise(): Long? {

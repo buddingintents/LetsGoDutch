@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.buddingintents.letsgodutch.core.designsystem.theme.CoralSoft
 import com.buddingintents.letsgodutch.core.designsystem.theme.MintGreen
 import com.buddingintents.letsgodutch.core.designsystem.theme.MintGlow
 import com.buddingintents.letsgodutch.core.designsystem.theme.MintTeal
@@ -95,22 +97,102 @@ fun AvatarBadge(
     modifier: Modifier = Modifier,
     size: Dp = 44.dp,
 ) {
-    val initial = label.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    val monogram = remember(label) { label.toAvatarMonogram() }
+    val paletteOptions = listOf(
+        AvatarBadgePalette(
+            startColor = MintGreen,
+            endColor = MintTeal,
+            accentColor = MintGlow,
+        ),
+        AvatarBadgePalette(
+            startColor = MaterialTheme.colorScheme.primary,
+            endColor = MaterialTheme.colorScheme.tertiary,
+            accentColor = MaterialTheme.colorScheme.tertiaryContainer,
+        ),
+        AvatarBadgePalette(
+            startColor = CoralSoft,
+            endColor = MaterialTheme.colorScheme.primary,
+            accentColor = MaterialTheme.colorScheme.primaryContainer,
+        ),
+        AvatarBadgePalette(
+            startColor = MaterialTheme.colorScheme.secondary,
+            endColor = MintTeal,
+            accentColor = MintGlow,
+        ),
+    )
+    val paletteIndex = (label.trim().hashCode() and Int.MAX_VALUE) % paletteOptions.size
+    val palette = paletteOptions[paletteIndex]
     Box(
         modifier = modifier
             .size(size)
             .shadow(8.dp, CircleShape)
             .clip(CircleShape)
-            .background(Brush.linearGradient(listOf(MintGreen, MintTeal))),
+            .background(
+                Brush.linearGradient(
+                    listOf(palette.startColor, palette.endColor),
+                ),
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(4.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.18f),
+                            Color.Transparent,
+                        ),
+                    ),
+                ),
+        )
         Text(
-            text = initial,
+            text = monogram,
             color = Color.White,
-            style = MaterialTheme.typography.titleMedium,
+            style = if (monogram.length > 1) {
+                MaterialTheme.typography.titleSmall
+            } else {
+                MaterialTheme.typography.titleMedium
+            },
             fontWeight = FontWeight.Bold,
         )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(3.dp)
+                .size(size * 0.24f)
+                .clip(CircleShape)
+                .background(palette.accentColor)
+                .border(1.dp, Color.White.copy(alpha = 0.54f), CircleShape),
+        )
     }
+}
+
+private data class AvatarBadgePalette(
+    val startColor: Color,
+    val endColor: Color,
+    val accentColor: Color,
+)
+
+private fun String.toAvatarMonogram(): String {
+    val parts = trim()
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+    if (parts.isEmpty()) return "?"
+    if (parts.size >= 2) {
+        return buildString {
+            append(parts[0].first().uppercaseChar())
+            append(parts[1].first().uppercaseChar())
+        }
+    }
+    val compact = parts[0].filter { it.isLetterOrDigit() }
+    return compact
+        .take(2)
+        .uppercase()
+        .ifBlank { "?" }
 }
 
 @Composable

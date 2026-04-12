@@ -2,28 +2,32 @@ package com.buddingintents.letsgodutch.feature.expenses
 
 import android.app.DatePickerDialog
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,12 +37,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.buddingintents.letsgodutch.core.designsystem.component.GradientButton
+import com.buddingintents.letsgodutch.core.designsystem.component.PillTabSelector
+import com.buddingintents.letsgodutch.core.model.ExpenseCategory
 import com.buddingintents.letsgodutch.core.model.SplitType
 import java.time.LocalDate
 import java.time.ZoneId
@@ -60,12 +65,15 @@ data class ExpenseDraft(
     val title: String,
     val amountRupees: String,
     val paymentDate: String,
+    val category: ExpenseCategory,
+    val note: String,
     val splitType: SplitType,
     val paidByUserId: String,
     val participantUserIds: List<String>,
     val splitInputs: List<SplitInputDraft>,
 )
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddExpenseDialog(
     members: List<ExpenseMemberOption>,
@@ -81,13 +89,9 @@ fun AddExpenseDialog(
     }
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf(ExpenseCategory.OTHER) }
+    var note by remember { mutableStateOf("") }
     var splitType by remember { mutableStateOf(SplitType.EQUAL) }
-    var paidByExpanded by remember { mutableStateOf(false) }
-    var splitTypeExpanded by remember { mutableStateOf(false) }
-    var paidByFieldWidthPx by remember { mutableStateOf(0) }
-    var splitTypeFieldWidthPx by remember { mutableStateOf(0) }
-    var participantsExpanded by remember { mutableStateOf(false) }
-    var participantsFieldWidthPx by remember { mutableStateOf(0) }
     var paidByUserId by remember(defaultPayer) { mutableStateOf(defaultPayer) }
     var participantUserIds by remember(members, selectAllMembersByDefaultForExpenses) {
         mutableStateOf(
@@ -104,10 +108,10 @@ fun AddExpenseDialog(
         focusedLabelColor = MaterialTheme.colorScheme.primary,
         unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
     )
-    val density = LocalDensity.current
     val backendDateFormatter = remember { DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.US) }
     val uiDateFormatter = remember { DateTimeFormatter.ofPattern("dd-MMM", Locale.US) }
     val today = remember { LocalDate.now(ZoneId.systemDefault()) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var paymentDate by remember { mutableStateOf(today) }
 
     val defaultValueProvider: (String) -> String = { _ ->
@@ -132,6 +136,12 @@ fun AddExpenseDialog(
         SplitType.PERCENTAGE -> "Percentage (%)"
         SplitType.CUSTOM -> "Custom Units"
     }
+    val categoryOptions = remember { ExpenseCategory.entries.toList() }
+    val splitTypeOptions = remember { SplitType.entries.toList() }
+    val splitTypeTabs = remember {
+        listOf("Equal", "Exact", "Percent", "Custom")
+    }
+    val selectedSplitTypeIndex = splitTypeOptions.indexOf(splitType).coerceAtLeast(0)
     val displayNameFor: (ExpenseMemberOption) -> String = { member ->
         member.displayName.ifBlank { "Member" }.take(16)
     }
@@ -147,21 +157,88 @@ fun AddExpenseDialog(
             }
         }
     }
+    val canSave = title.isNotBlank() &&
+        amount.isNotBlank() &&
+        paidByUserId.isNotBlank() &&
+        participantUserIds.isNotEmpty()
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
-        titleContentColor = MaterialTheme.colorScheme.onSurface,
-        textContentColor = MaterialTheme.colorScheme.onSurface,
-        title = { Text("Add Expense") },
-        text = {
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.92f),
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 600.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                Text(
+                    text = "Add Expense",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = "Start with the amount, then fill in the rest of the details.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 4.dp,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = "Amount",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        OutlinedTextField(
+                            value = amount,
+                            onValueChange = { amount = it },
+                            label = { Text("Total") },
+                            prefix = {
+                                Text(
+                                    text = "\u20B9",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            },
+                            textStyle = MaterialTheme.typography.headlineSmall,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            colors = textFieldColors,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                        Text(
+                            text = "Enter the full expense total in INR.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -170,16 +247,25 @@ fun AddExpenseDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Amount") },
-                    prefix = { Text("\u20B9") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    colors = textFieldColors,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Category",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        categoryOptions.forEach { option ->
+                            FilterChip(
+                                selected = option == category,
+                                onClick = { category = option },
+                                label = { Text(option.displayLabel) },
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = paymentDate.format(uiDateFormatter),
                     onValueChange = {},
@@ -211,134 +297,77 @@ fun AddExpenseDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                 )
-                Box {
-                    OutlinedTextField(
-                        value = members.firstOrNull { it.userId == paidByUserId }?.displayName
-                            ?.ifBlank { "Member" }
-                            .orEmpty(),
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Paid By") },
-                        trailingIcon = {
-                            TextButton(onClick = { paidByExpanded = !paidByExpanded }) {
-                                Text("Select")
-                            }
-                        },
-                        colors = textFieldColors,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onGloballyPositioned { coordinates ->
-                                paidByFieldWidthPx = coordinates.size.width
-                            },
-                        singleLine = true,
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { updated -> note = updated.take(140) },
+                    label = { Text("Note (Optional)") },
+                    supportingText = {
+                        Text("${note.length}/140")
+                    },
+                    colors = textFieldColors,
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 3,
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Paid By",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
                     )
-                    DropdownMenu(
-                        expanded = paidByExpanded,
-                        onDismissRequest = { paidByExpanded = false },
-                        modifier = if (paidByFieldWidthPx > 0) {
-                            Modifier.width(with(density) { paidByFieldWidthPx.toDp() })
-                        } else {
-                            Modifier
-                        },
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         members.forEach { member ->
-                            DropdownMenuItem(
-                                text = { Text(displayNameFor(member)) },
-                                leadingIcon = {
-                                    MemberAvatar(
-                                        displayName = displayNameFor(member),
-                                        photoUrl = member.photoUrl,
-                                    )
-                                },
-                                onClick = {
-                                    paidByUserId = member.userId
-                                    paidByExpanded = false
-                                },
+                            MemberSelectionChip(
+                                displayName = displayNameFor(member),
+                                photoUrl = member.photoUrl,
+                                selected = member.userId == paidByUserId,
+                                onClick = { paidByUserId = member.userId },
                             )
                         }
                     }
                 }
-
-                Box {
-                    OutlinedTextField(
-                        value = splitType.name.lowercase().replaceFirstChar { it.uppercase() },
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Split Type") },
-                        trailingIcon = {
-                            TextButton(onClick = { splitTypeExpanded = !splitTypeExpanded }) {
-                                Text("Select")
-                            }
-                        },
-                        colors = textFieldColors,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onGloballyPositioned { coordinates ->
-                                splitTypeFieldWidthPx = coordinates.size.width
-                            },
-                        singleLine = true,
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Split Type",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
                     )
-                    DropdownMenu(
-                        expanded = splitTypeExpanded,
-                        onDismissRequest = { splitTypeExpanded = false },
-                        modifier = if (splitTypeFieldWidthPx > 0) {
-                            Modifier.width(with(density) { splitTypeFieldWidthPx.toDp() })
-                        } else {
-                            Modifier
+                    PillTabSelector(
+                        tabs = splitTypeTabs,
+                        selectedIndex = selectedSplitTypeIndex,
+                        onSelectedIndexChange = { index ->
+                            splitType = splitTypeOptions[index]
                         },
-                    ) {
-                        SplitType.entries.forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                                onClick = {
-                                    splitType = type
-                                    splitTypeExpanded = false
-                                },
-                            )
-                        }
-                    }
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
-
-                Box {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val allSelected = participantUserIds.size == allMemberIds.size && allMemberIds.isNotEmpty()
-                    OutlinedTextField(
-                        value = selectedParticipantSummary,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Participants") },
-                        trailingIcon = {
-                            TextButton(onClick = { participantsExpanded = !participantsExpanded }) {
-                                Text("Select")
-                            }
-                        },
-                        colors = textFieldColors,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onGloballyPositioned { coordinates ->
-                                participantsFieldWidthPx = coordinates.size.width
-                            },
-                    )
-                    DropdownMenu(
-                        expanded = participantsExpanded,
-                        onDismissRequest = { participantsExpanded = false },
-                        modifier = Modifier
-                            .heightIn(max = 280.dp)
-                            .then(
-                                if (participantsFieldWidthPx > 0) {
-                                    Modifier.width(with(density) { participantsFieldWidthPx.toDp() })
-                                } else {
-                                    Modifier
-                                },
-                            ),
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(if (allSelected) "Clear All" else "All Members") },
-                            trailingIcon = {
-                                Checkbox(
-                                    checked = allSelected,
-                                    onCheckedChange = null,
-                                )
-                            },
+                        Text(
+                            text = "Participants",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = selectedParticipantSummary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilterChip(
+                            selected = allSelected,
                             onClick = {
                                 participantUserIds = if (allSelected) {
                                     emptyList()
@@ -346,23 +375,14 @@ fun AddExpenseDialog(
                                     allMemberIds
                                 }
                             },
+                            label = { Text(if (allSelected) "Clear All" else "All Members") },
                         )
                         members.forEach { member ->
                             val selected = member.userId in participantUserIds
-                            DropdownMenuItem(
-                                text = { Text(displayNameFor(member)) },
-                                leadingIcon = {
-                                    MemberAvatar(
-                                        displayName = displayNameFor(member),
-                                        photoUrl = member.photoUrl,
-                                    )
-                                },
-                                trailingIcon = {
-                                    Checkbox(
-                                        checked = selected,
-                                        onCheckedChange = null,
-                                    )
-                                },
+                            MemberSelectionChip(
+                                displayName = displayNameFor(member),
+                                photoUrl = member.photoUrl,
+                                selected = selected,
                                 onClick = {
                                     participantUserIds = if (selected) {
                                         participantUserIds.filterNot { it == member.userId }
@@ -374,7 +394,6 @@ fun AddExpenseDialog(
                         }
                     }
                 }
-
                 if (splitType != SplitType.EQUAL) {
                     Text(splitLabel, style = MaterialTheme.typography.labelLarge)
                     participantUserIds.forEach { memberId ->
@@ -396,43 +415,70 @@ fun AddExpenseDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val selectedParticipants = participantUserIds.distinct()
-                    val splitInputs = if (splitType == SplitType.EQUAL) {
-                        emptyList()
-                    } else {
-                        selectedParticipants.map { memberId ->
-                            val value = inputByUserId[memberId] ?: defaultValueProvider(memberId)
-                            SplitInputDraft(userId = memberId, value = value.trim())
-                        }
-                    }
-                    onSave(
-                        ExpenseDraft(
-                            title = title.trim(),
-                            amountRupees = amount.trim(),
-                            paymentDate = paymentDate.format(backendDateFormatter),
-                            splitType = splitType,
-                            paidByUserId = paidByUserId,
-                            participantUserIds = selectedParticipants,
-                            splitInputs = splitInputs,
-                        ),
-                    )
-                },
-                enabled = title.isNotBlank() &&
-                    amount.isNotBlank() &&
-                    paidByUserId.isNotBlank() &&
-                    participantUserIds.isNotEmpty(),
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Save")
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+                GradientButton(
+                    text = "Save",
+                    onClick = {
+                        val selectedParticipants = participantUserIds.distinct()
+                        val splitInputs = if (splitType == SplitType.EQUAL) {
+                            emptyList()
+                        } else {
+                            selectedParticipants.map { memberId ->
+                                val value = inputByUserId[memberId] ?: defaultValueProvider(memberId)
+                                SplitInputDraft(userId = memberId, value = value.trim())
+                            }
+                        }
+                        onSave(
+                            ExpenseDraft(
+                                title = title.trim(),
+                                amountRupees = amount.trim(),
+                                paymentDate = paymentDate.format(backendDateFormatter),
+                                category = category,
+                                note = note.trim(),
+                                splitType = splitType,
+                                paidByUserId = paidByUserId,
+                                participantUserIds = selectedParticipants,
+                                splitInputs = splitInputs,
+                            ),
+                        )
+                    },
+                    enabled = canSave,
+                    modifier = Modifier.weight(1f),
+                )
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+        }
+    }
+}
+
+@Composable
+private fun MemberSelectionChip(
+    displayName: String,
+    photoUrl: String?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        modifier = modifier,
+        label = { Text(displayName) },
+        leadingIcon = {
+            MemberAvatar(
+                displayName = displayName,
+                photoUrl = photoUrl,
+            )
         },
     )
 }

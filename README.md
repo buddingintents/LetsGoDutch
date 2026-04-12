@@ -16,18 +16,17 @@ The app is INR-first today, supports both Google sign-in and name-only anonymous
 | UI Stack | Jetpack Compose + Material 3 |
 | Architecture | multi-module app with `core:*` and `feature:*` modules |
 | Backend | Firebase Auth + Realtime Database + FCM |
-| Current UI Phase | `Fresh Mint` revamp, Phase 1 complete, `R-02` completed and verified, `R-03` next, partial `R-04` polish already landed in ledger and insights |
+| Current UI Phase | `Fresh Mint` revamp shipped across auth, groups, expense entry, ledger, insights, settlement, and activity feed; remaining audit backlog is currently deferred |
 
 ## Revamp Status And Audit Note
 
 The revamp source of truth is [docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md](docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md).
 
-As of `2026-04-10`:
+As of `2026-04-12`:
 
 - Phase 1 is complete
-- Phase 2 UI revamp has `R-02` completed and verified
-- `R-03` is the next formal milestone
-- partial `R-04` polish already exists in ledger and insights
+- Phase 2 audit implementation has landed through insights, settlement, activity feed, categories, notes, and UPI activity handling
+- remaining audit backlog items are currently deferred for a later pass
 - both Google sign-in and anonymous name-based entry are supported
 
 The audit artifact at [docs/Revamp/Audit/LGD_UIAudit_Roadmap.html](docs/Revamp/Audit/LGD_UIAudit_Roadmap.html) is useful as a recommendation backlog, but it is inference-based from documentation, commit history, and revamp prompts. Treat it as a prioritization aid, not as a source-reviewed implementation checklist.
@@ -62,6 +61,7 @@ The audit artifact at [docs/Revamp/Audit/LGD_UIAudit_Roadmap.html](docs/Revamp/A
 
 - View a ledger surface
 - View an insights surface
+- View a group activity feed
 - See who owes and who should receive
 - Review suggested settlement transfers
 - Open a dedicated settlement preview before final confirmation
@@ -82,6 +82,7 @@ The audit artifact at [docs/Revamp/Audit/LGD_UIAudit_Roadmap.html](docs/Revamp/A
 - Firebase-backed notification ingestion for group updates
 - Local notification rendering for incoming notification records
 - Daily local reminder at `10:00 AM` device-local time when unsettled groups still exist
+- Reminder copy uses explicit `They owe you` / `You owe them` wording when balances are one-sided
 - No daily reminder when all current groups are settled
 
 ## Recent Product Changes
@@ -90,7 +91,7 @@ The audit artifact at [docs/Revamp/Audit/LGD_UIAudit_Roadmap.html](docs/Revamp/A
 
 Recent updates to the post-login groups landing surface include:
 
-- New `Group Summary` hero card
+- New `Group Summary` hero card with time-based greeting
 - Aggregate signed-in-user settlement summary across groups
 - Per-group settlement pill showing:
   - `They owe you`
@@ -99,6 +100,14 @@ Recent updates to the post-login groups landing surface include:
 - More compact hero and group card heights to show more information on screen
 - Ambient blurred background art behind the groups surface
 - Invite-code pill resized so settlement status can share the same row
+
+### Group Detail and Settlement Updates
+
+- `Ledger`, `Insights`, and `Activity` now sit behind a shared pill selector
+- `Activity` tab records group creation, joins, member changes, expense changes, and final settlement
+- Expense categories and optional notes now persist end-to-end
+- Settlement PDFs can be opened or shared later from `Recent Settlements`
+- Settlement PDF layout now uses a light document theme for better readability
 
 ### Login Screen Polish
 
@@ -109,6 +118,7 @@ Recent updates to the post-login groups landing surface include:
 ### Reminder Flow
 
 - Daily unsettled-group reminder scheduling at `10:00 AM` local time
+- Reminder body now states `They owe you` or `You owe them` explicitly when balances are one-sided
 - Alarm rescheduling on:
   - app start
   - reboot
@@ -118,13 +128,12 @@ Recent updates to the post-login groups landing surface include:
 
 ## Audit-Driven Follow-Ups
 
-Current high-value follow-ups called out by the audit backlog:
+Current high-value follow-ups still open after the current pass:
 
-- groups landing balance summary and per-group balance context
-- real insights charts instead of placeholder analytics
-- theme cleanup: remove hardcoded colors, finish dark-mode wiring, and use branded primary CTAs consistently
-- edge-to-edge cleanup with status-bar insets on all major scaffolds
-- settings and settlement polish: account ID visibility, richer payment rows, and better success feedback
+- cloud function deployment and live FCM verification
+- group budget tracker
+- recurring expenses
+- remaining deferred UI audit cleanup items
 
 ## Play Store Listing Draft
 
@@ -134,13 +143,12 @@ Split group expenses, track personal spends, and settle with shareable PDFs.
 
 ### What's New Draft
 
-- Fresh Mint UI revamp continues with a refreshed Groups home
-- New `Group Summary` hero with signed-in user settlement totals
-- Per-group `You owe` / `They owe you` amounts on the Groups screen
-- More compact group cards to fit more on screen
-- Polished login experience and cleaner field styling
-- Daily reminders for unsettled groups
-- Stability, readability, and UX improvements
+- New group `Activity` tab for create, join, expense, and settlement history
+- Insights and settlement flows are now richer and clearer
+- Expense categories and notes now persist end-to-end
+- Recent settlements now support both `Open` and `Share`
+- Reminder wording is clearer with explicit `They owe you` / `You owe them`
+- PDF readability and overall UI polish improved
 
 ### Full Description Draft
 
@@ -487,12 +495,13 @@ Examples of settlement funnel events currently called out in project docs:
 Recent revamp documentation records:
 
 - `R-02` first-impression milestone completed and verified
-- revamp source of truth remains the master plan, with `R-03` next and partial `R-04` polish already landed early
+- the audit implementation wave now includes insights, settlement preview, activity feed, categories, notes, and UPI activity handling
 - groups landing verified across zero, one, and many-group states
 - on-device verification for the new groups hero, denser cards, and per-group settlement pills
 - on-device verification for daily unsettled-group reminder behavior
 - [docs/Revamp/Audit/LGD_UIAudit_Roadmap.html](docs/Revamp/Audit/LGD_UIAudit_Roadmap.html) captures inferred UI gaps and roadmap ideas from the documentation state at audit time
 - [docs/Revamp/Audit/LGD_UI_AUDIT_ASSESSMENT_2026-04-10.md](docs/Revamp/Audit/LGD_UI_AUDIT_ASSESSMENT_2026-04-10.md) translates that audit into a criticality/usefulness/complexity/solo-feasibility matrix
+- [docs/Revamp/Audit/LGD_UI_AUDIT_COMPLETED_2026-04-10.md](docs/Revamp/Audit/LGD_UI_AUDIT_COMPLETED_2026-04-10.md) tracks passed audit items moved out of the active implementation tracker
 
 Revamp references:
 
@@ -502,19 +511,21 @@ Revamp references:
 ## Known Limitations and Follow-Ups
 
 - Automatic Android App Links verification for release-signed builds still needs final end-to-end confirmation
-- Settlement preview UI is still routed inline from `LetsGoDutchApp.kt` and has not yet been fully extracted into a feature-owned screen
 - Some active screens still live in `app/` and not in dedicated feature modules
-- Backend push sending is not performed by the Android client and still requires Cloud Functions or another trusted server path
+- Cloud Functions push automation now has an in-repo scaffold under `functions/`, but it still requires Firebase deployment before production delivery works
+- Remaining audit backlog items are intentionally deferred after the current implementation wave
 
 ## Related Documentation
 
 - [docs/V1_TECH_SPEC.md](docs/V1_TECH_SPEC.md)
+- [docs/APPLICATION_ARCHITECTURE.md](docs/APPLICATION_ARCHITECTURE.md)
 - [docs/FIREBASE_TELEMETRY_AND_FCM_SETUP.md](docs/FIREBASE_TELEMETRY_AND_FCM_SETUP.md)
 - [docs/DEEP_LINK_VALIDATION_2026-04-08.md](docs/DEEP_LINK_VALIDATION_2026-04-08.md)
 - [docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md](docs/Revamp/LGD_UI_REVAMP_MASTER_PLAN.md)
 - [docs/Revamp/UI_REVAMP_SUGGESTION_TRACKER.md](docs/Revamp/UI_REVAMP_SUGGESTION_TRACKER.md)
 - [docs/Revamp/Audit/LGD_UIAudit_Roadmap.html](docs/Revamp/Audit/LGD_UIAudit_Roadmap.html)
 - [docs/Revamp/Audit/LGD_UI_AUDIT_ASSESSMENT_2026-04-10.md](docs/Revamp/Audit/LGD_UI_AUDIT_ASSESSMENT_2026-04-10.md)
+- [docs/Revamp/Audit/LGD_UI_AUDIT_COMPLETED_2026-04-10.md](docs/Revamp/Audit/LGD_UI_AUDIT_COMPLETED_2026-04-10.md)
 
 ## Security and Repo Hygiene
 

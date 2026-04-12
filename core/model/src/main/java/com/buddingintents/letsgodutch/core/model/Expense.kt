@@ -15,6 +15,8 @@ data class Expense(
     val participantUserIds: List<String>,
     val splitType: SplitType,
     val shares: List<SplitShare>,
+    val category: ExpenseCategory = ExpenseCategory.OTHER,
+    val note: String = "",
     val createdByUserId: String,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,

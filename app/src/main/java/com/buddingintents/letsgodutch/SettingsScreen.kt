@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.dp
 import com.buddingintents.letsgodutch.core.designsystem.component.AvatarBadge
 import com.buddingintents.letsgodutch.core.designsystem.component.GradientButton
 import com.buddingintents.letsgodutch.core.designsystem.component.SectionLabel
+import com.buddingintents.letsgodutch.core.model.isValidUpiId
+import com.buddingintents.letsgodutch.core.model.normalizeUpiId
 import com.buddingintents.letsgodutch.core.designsystem.theme.Charcoal
 import com.buddingintents.letsgodutch.core.designsystem.theme.MintGlow
 import com.buddingintents.letsgodutch.core.designsystem.theme.MintGreen
@@ -56,14 +58,15 @@ import com.buddingintents.letsgodutch.core.designsystem.theme.TextOnDark
 @Composable
 fun SettingsScreen(
     currentDisplayName: String,
+    currentUpiId: String,
     currentAccountId: String,
     currentAccountSummary: String,
     currentAccountEmail: String,
-    isSavingDisplayName: Boolean,
+    isSavingProfile: Boolean,
     appUpdateSummary: String,
     isCheckingForAppUpdate: Boolean,
     isDownloadedUpdateReady: Boolean,
-    onUpdateDisplayName: (String) -> Unit,
+    onSaveProfile: (String, String) -> Unit,
     onResetTourClick: () -> Unit,
     onCheckForAppUpdateClick: () -> Unit,
     onInstallDownloadedUpdateClick: () -> Unit,
@@ -71,12 +74,20 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     val displayNameSeed = currentDisplayName.trim().ifBlank { "Member" }
+    val upiIdSeed = currentUpiId.normalizeUpiId()
     var displayName by rememberSaveable(displayNameSeed) { mutableStateOf(displayNameSeed) }
+    var upiId by rememberSaveable(upiIdSeed) { mutableStateOf(upiIdSeed) }
     val normalizedInitialName = displayNameSeed.trim()
     val normalizedEditedName = displayName.trim()
-    val canSaveName = normalizedEditedName.isNotBlank() &&
-        normalizedEditedName != normalizedInitialName &&
-        !isSavingDisplayName
+    val normalizedInitialUpiId = upiIdSeed
+    val normalizedEditedUpiId = upiId.normalizeUpiId()
+    val isUpiValid = normalizedEditedUpiId.isValidUpiId()
+    val hasProfileChanges = normalizedEditedName != normalizedInitialName ||
+        normalizedEditedUpiId != normalizedInitialUpiId
+    val canSaveProfile = normalizedEditedName.isNotBlank() &&
+        hasProfileChanges &&
+        isUpiValid &&
+        !isSavingProfile
 
     Box(
         modifier = modifier
@@ -99,18 +110,21 @@ fun SettingsScreen(
             item {
                 SettingsProfileCard(
                     displayName = displayName.ifBlank { displayNameSeed },
+                    editableUpiId = upiId,
                     accountSummary = currentAccountSummary,
                     accountEmail = currentAccountEmail,
                     accountId = currentAccountId.ifBlank { "Unavailable" },
                     editableDisplayName = displayName,
                     onDisplayNameChange = { displayName = it },
+                    onUpiIdChange = { upiId = it },
+                    isUpiValid = isUpiValid,
                 )
             }
             item {
                 GradientButton(
-                    text = if (isSavingDisplayName) "Saving..." else "Save Changes",
-                    onClick = { onUpdateDisplayName(normalizedEditedName) },
-                    enabled = canSaveName,
+                    text = if (isSavingProfile) "Saving..." else "Save Profile",
+                    onClick = { onSaveProfile(normalizedEditedName, normalizedEditedUpiId) },
+                    enabled = canSaveProfile,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -186,11 +200,14 @@ fun SettingsScreen(
 @Composable
 private fun SettingsProfileCard(
     displayName: String,
+    editableUpiId: String,
     accountSummary: String,
     accountEmail: String,
     accountId: String,
     editableDisplayName: String,
     onDisplayNameChange: (String) -> Unit,
+    onUpiIdChange: (String) -> Unit,
+    isUpiValid: Boolean,
 ) {
     val primarySupportingText = accountEmail.ifBlank { accountSummary }
 
@@ -282,6 +299,39 @@ private fun SettingsProfileCard(
                         unfocusedTextColor = Color.White,
                         cursorColor = MintGreen,
                     ),
+                )
+                OutlinedTextField(
+                    value = editableUpiId,
+                    onValueChange = onUpiIdChange,
+                    label = { Text("UPI ID") },
+                    singleLine = true,
+                    isError = !isUpiValid,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MintGreen,
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.16f),
+                        errorBorderColor = MaterialTheme.colorScheme.error,
+                        focusedLabelColor = MintGreen,
+                        unfocusedLabelColor = TextOnDark.copy(alpha = 0.65f),
+                        errorLabelColor = MaterialTheme.colorScheme.error,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        errorContainerColor = Color.Transparent,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        errorTextColor = Color.White,
+                        cursorColor = MintGreen,
+                    ),
+                )
+                Text(
+                    text = if (isUpiValid) {
+                        "Used for settlement shortcuts. Leave blank to hide the action."
+                    } else {
+                        "Enter a valid UPI ID like name@bank."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isUpiValid) TextOnDark.copy(alpha = 0.68f) else MaterialTheme.colorScheme.error,
                 )
                 Row(
                     modifier = Modifier

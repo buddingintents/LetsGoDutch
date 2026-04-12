@@ -48,11 +48,13 @@ Notes:
 ## 4) Required Backend for FCM Delivery
 
 FCM push cannot be sent securely from Android client directly.
+This repo now includes a deployable Cloud Functions package under `functions/` that sends push messages from notification records written by the Android client.
+
 Use Cloud Functions (or your own server) to send messages to tokens stored under:
 
 `fcmTokens/{userId}/{tokenId}`
 
-### Suggested Cloud Function flow
+### Included Cloud Function flow
 
 Trigger: Realtime Database write at `notifications/{userId}/{notificationId}`
 
@@ -61,48 +63,23 @@ Steps:
 2. Send multicast message via Firebase Admin SDK.
 3. Remove invalid tokens (`registration-token-not-registered`, etc.).
 
-### Example function (Node.js, pseudo-template)
+### Deploy commands
 
-```js
-exports.pushUserNotification = onValueCreated(
-  "/notifications/{userId}/{notificationId}",
-  async (event) => {
-    const { userId } = event.params;
-    const payload = event.data.val() || {};
-    const snap = await admin.database().ref(`fcmTokens/${userId}`).get();
-    const tokens = [];
-    snap.forEach((child) => {
-      const token = child.child("token").val();
-      if (token) tokens.push(token);
-    });
-    if (!tokens.length) return;
-
-    const response = await admin.messaging().sendEachForMulticast({
-      tokens,
-      notification: {
-        title: payload.title || "Let's Go Dutch",
-        body: payload.body || "You have a new update.",
-      },
-      data: {
-        type: String(payload.type || "GENERIC"),
-        groupId: String(payload.groupId || ""),
-      },
-      android: { priority: "high" },
-    });
-
-    // Remove invalid tokens
-    const updates = {};
-    response.responses.forEach((r, i) => {
-      if (!r.success && r.error?.code === "messaging/registration-token-not-registered") {
-        // map token back to tokenId if stored
-      }
-    });
-    if (Object.keys(updates).length) {
-      await admin.database().ref(`fcmTokens/${userId}`).update(updates);
-    }
-  }
-);
+```powershell
+cd functions
+npm install
+firebase deploy --only functions
 ```
+
+The included function:
+
+1. Watches `notifications/{userId}/{notificationId}` on create.
+2. Reads `fcmTokens/{userId}`.
+3. Sends a high-priority data-only FCM payload with `notificationId`, `title`, `body`, `type`, and `groupId`.
+4. Removes invalid tokens.
+5. Writes push delivery status back under `notifications/{userId}/{notificationId}/pushDelivery`.
+
+Android now deduplicates Realtime Database-driven local notifications against FCM by `notificationId`, so backend delivery does not create duplicate alerts when the app is already active.
 
 ## 5) Realtime Database Rules (minimum idea)
 
@@ -122,4 +99,3 @@ Allow users to write their own token nodes:
 ```
 
 Merge this with your full ruleset.
-

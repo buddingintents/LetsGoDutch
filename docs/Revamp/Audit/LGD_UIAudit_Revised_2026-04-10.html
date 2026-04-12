@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Let's Go Dutch — Revised UI Audit (2026-04-10)</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --mint:#3DD68C;--mint-lt:#E6FAF1;--mint-dk:#1A9A5C;
+  --teal:#0D7A6E;--charcoal:#1C2333;--slate:#3A4460;
+  --fog:#F4F7F5;--gold:#F5A623;--coral:#FF5C5C;--indigo:#6366F1;
+  --card:#FFFFFF;--text:#1C2333;--muted:#6B7A8D;--border:#E2E8F0;
+  --r:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Sora',sans-serif;background:var(--fog);color:var(--text);}
+
+/* HERO */
+.hero{background:linear-gradient(135deg,#0A4A3E 0%,var(--charcoal) 100%);padding:48px 24px 40px;text-align:center;position:relative;overflow:hidden;}
+.hero::before{content:'';position:absolute;top:-50px;right:-50px;width:280px;height:280px;background:radial-gradient(circle,rgba(61,214,140,.18) 0%,transparent 70%);border-radius:50%;}
+.hero::after{content:'';position:absolute;bottom:-60px;left:-30px;width:200px;height:200px;background:radial-gradient(circle,rgba(61,214,140,.1) 0%,transparent 70%);border-radius:50%;}
+.hero-badge{display:inline-block;background:rgba(61,214,140,.15);border:1px solid rgba(61,214,140,.4);color:var(--mint);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:4px 14px;border-radius:20px;margin-bottom:14px;}
+.hero h1{color:#fff;font-size:clamp(20px,4vw,36px);font-weight:800;line-height:1.2;margin-bottom:8px;}
+.hero h1 span{color:var(--mint);}
+.hero p{color:rgba(255,255,255,.6);font-size:13px;max-width:520px;margin:0 auto;line-height:1.7;}
+.hero-meta{display:flex;justify-content:center;gap:24px;margin-top:18px;flex-wrap:wrap;}
+.hero-stat .num{font-size:20px;font-weight:800;color:var(--mint);}
+.hero-stat .lbl{font-size:9px;color:rgba(255,255,255,.45);font-weight:600;letter-spacing:1.2px;text-transform:uppercase;}
+
+/* CORRECTION BANNER */
+.banner{max-width:1080px;margin:14px auto 0;padding:0 20px;}
+.banner-inner{background:linear-gradient(135deg,#FEF9C3,#FEF3C7);border:1.5px solid #F59E0B;border-radius:12px;padding:14px 18px;}
+.banner-title{font-size:12px;font-weight:700;color:#92400E;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.banner-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;}
+.correction-item{background:#fff8;border-radius:8px;padding:10px 12px;border-left:3px solid #F59E0B;}
+.correction-item .label{font-size:10px;font-weight:700;color:#92400E;margin-bottom:3px;}
+.correction-item .text{font-size:11px;color:#1C2333;line-height:1.5;}
+.correction-item .fixed{font-size:10px;color:#065F46;font-weight:600;margin-top:3px;}
+
+/* TABS */
+.tab-bar{display:flex;gap:7px;padding:18px 20px 0;overflow-x:auto;scrollbar-width:none;max-width:1080px;margin:0 auto;}
+.tab-bar::-webkit-scrollbar{display:none;}
+.tab{flex-shrink:0;background:#fff;border:2px solid var(--border);color:var(--muted);font-family:'Sora',sans-serif;font-size:11px;font-weight:600;padding:7px 14px;border-radius:30px;cursor:pointer;transition:all .2s;}
+.tab:hover{border-color:var(--mint);color:var(--mint-dk);}
+.tab.active{background:var(--mint);border-color:var(--mint);color:#fff;}
+
+/* SECTIONS */
+.section{display:none;max-width:1080px;margin:0 auto;padding:24px 20px 56px;}
+.section.active{display:block;}
+.sec-title{font-size:18px;font-weight:700;color:var(--charcoal);margin-bottom:4px;}
+.sec-sub{color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:22px;}
+
+/* DONE/IN-PROGRESS CALLOUTS */
+.done-box{background:linear-gradient(135deg,#D1FAE5,#A7F3D0);border:1.5px solid #34D399;border-radius:12px;padding:14px 18px;margin-bottom:20px;}
+.done-box h3{font-size:13px;font-weight:700;color:#065F46;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.done-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;}
+.done-item{background:#fff8;border-radius:7px;padding:8px 10px;font-size:11px;color:#065F46;display:flex;align-items:flex-start;gap:6px;line-height:1.4;}
+.done-item::before{content:'✓';font-weight:800;color:#059669;flex-shrink:0;margin-top:1px;}
+
+/* FILE MAP TABLE */
+.file-table{width:100%;border-collapse:collapse;margin-bottom:22px;font-size:11px;}
+.file-table th{background:var(--charcoal);color:#fff;padding:9px 12px;text-align:left;font-size:10px;letter-spacing:.5px;}
+.file-table td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+.file-table tr:nth-child(even) td{background:#F8FAFC;}
+.file-table .dep{color:#EF4444;font-weight:600;}
+.file-table .act{color:#10B981;font-weight:600;}
+.file-table .app{color:#6366F1;font-weight:600;}
+code{font-family:'DM Mono',monospace;font-size:10px;background:#F1F5F9;padding:1px 5px;border-radius:4px;color:#1E40AF;}
+
+/* AUDIT CARDS */
+.audit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px;margin-bottom:24px;}
+.audit-card{background:#fff;border-radius:var(--r);border:1.5px solid var(--border);overflow:hidden;}
+.ac-head{padding:12px 14px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border);}
+.ac-icon{font-size:17px;}
+.ac-title{font-size:12px;font-weight:700;color:var(--charcoal);flex:1;line-height:1.3;}
+.pill{font-size:9px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+.p-done{background:#D1FAE5;color:#065F46;}
+.p-part{background:#FEF3C7;color:#92400E;}
+.p-miss{background:#FFE4E6;color:#9F1239;}
+.p-na{background:#F1F5F9;color:#475569;}
+.ac-body{padding:12px 14px;}
+.obs{display:flex;gap:7px;margin-bottom:7px;align-items:flex-start;font-size:11px;line-height:1.5;}
+.obs:last-child{margin-bottom:0;}
+.obs-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.dg{background:#10B981;}.da{background:#F59E0B;}.dr{background:#EF4444;}.di{background:#6366F1;}
+.obs-text{color:var(--muted);}
+.obs-text strong{color:var(--charcoal);font-weight:600;}
+
+/* SCORE BARS */
+.score-wrap{background:#fff;border-radius:var(--r);border:1.5px solid var(--border);padding:18px;margin-bottom:22px;}
+.score-wrap h3{font-size:13px;font-weight:700;margin-bottom:14px;color:var(--charcoal);}
+.score-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.score-lbl{font-size:11px;font-weight:600;color:var(--charcoal);width:180px;flex-shrink:0;}
+.score-track{flex:1;height:7px;background:#F1F5F9;border-radius:4px;overflow:hidden;}
+.score-fill{height:100%;border-radius:4px;transition:width .9s ease;}
+.score-pct{font-size:11px;font-weight:700;width:34px;text-align:right;}
+.score-note{font-size:10px;color:var(--muted);margin-top:4px;}
+
+/* BACKLOG TABLE */
+.backlog-table{width:100%;border-collapse:collapse;margin-bottom:22px;font-size:11px;}
+.backlog-table th{background:var(--charcoal);color:#fff;padding:8px 10px;text-align:left;font-size:10px;letter-spacing:.3px;}
+.backlog-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+.backlog-table tr:nth-child(even) td{background:#F8FAFC;}
+.backlog-table .h-crit{color:#DC2626;font-weight:700;}
+.backlog-table .m-crit{color:#D97706;font-weight:700;}
+.backlog-table .l-crit{color:#059669;}
+.backlog-table .h-feas{color:#059669;font-weight:700;}
+.backlog-table .m-feas{color:#D97706;}
+.backlog-table .l-feas{color:#DC2626;}
+.id-badge{font-family:'DM Mono',monospace;font-size:9px;background:#EFF6FF;color:#2563EB;padding:2px 6px;border-radius:4px;white-space:nowrap;}
+
+/* SEQUENCING */
+.seq-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:22px;}
+.seq-card{background:#fff;border-radius:var(--r);border:1.5px solid var(--border);padding:14px;}
+.seq-card.hot{border-color:#FCA5A5;background:#FFF5F5;}
+.seq-card.warm{border-color:#FDE68A;background:#FFFBEB;}
+.seq-card.cool{border-color:#BFDBFE;background:#EFF6FF;}
+.seq-tag{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+.seq-tag.red{color:#DC2626;}.seq-tag.amber{color:#D97706;}.seq-tag.blue{color:#2563EB;}
+.seq-card h4{font-size:12px;font-weight:700;color:var(--charcoal);margin-bottom:5px;}
+.seq-card ul{list-style:none;padding:0;}
+.seq-card ul li{font-size:11px;color:var(--muted);margin-bottom:4px;padding-left:14px;position:relative;line-height:1.4;}
+.seq-card ul li::before{content:'→';position:absolute;left:0;color:var(--mint);font-weight:700;}
+.seq-card ul li strong{color:var(--charcoal);}
+
+/* PROMPT CARDS */
+.prompt-card{background:#fff;border-radius:var(--r);border:1.5px solid var(--border);overflow:hidden;margin-bottom:16px;}
+.pc-head{padding:12px 14px;background:linear-gradient(135deg,var(--charcoal),var(--slate));display:flex;align-items:center;gap:9px;}
+.pc-icon{font-size:16px;}
+.pc-title{font-size:12px;font-weight:700;color:#fff;flex:1;}
+.pc-pri{font-size:9px;font-weight:700;padding:2px 9px;border-radius:10px;background:rgba(61,214,140,.2);color:var(--mint);white-space:nowrap;}
+.pc-body{padding:14px;}
+.pc-body p{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;}
+.code-block{background:#0F172A;border-radius:8px;padding:14px;font-family:'DM Mono',monospace;font-size:10.5px;color:#E2E8F0;line-height:1.7;white-space:pre-wrap;position:relative;}
+.kw{color:#34D399;font-weight:700;}
+.cm{color:#64748B;font-style:italic;}
+.str{color:#FCD34D;}
+.copy-btn{position:absolute;top:8px;right:8px;background:rgba(61,214,140,.15);border:1px solid rgba(61,214,140,.3);color:var(--mint);font-family:'Sora',sans-serif;font-size:9px;font-weight:700;padding:3px 9px;border-radius:5px;cursor:pointer;transition:all .2s;}
+.copy-btn:hover,.copy-btn.copied{background:var(--mint);color:#fff;border-color:var(--mint);}
+
+/* TIMELINE */
+.timeline{position:relative;padding-left:24px;margin-bottom:24px;}
+.timeline::before{content:'';position:absolute;left:6px;top:8px;bottom:8px;width:2px;background:linear-gradient(to bottom,var(--mint),var(--teal));}
+.tl-item{position:relative;margin-bottom:18px;}
+.tl-dot{position:absolute;left:-24px;top:4px;width:12px;height:12px;border-radius:50%;border:2.5px solid var(--mint);background:#fff;}
+.tl-dot.filled{background:var(--mint);}
+.tl-week{font-size:9px;font-weight:700;color:var(--mint-dk);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;}
+.tl-title{font-size:12px;font-weight:700;color:var(--charcoal);}
+.tl-desc{font-size:11px;color:var(--muted);line-height:1.5;margin-top:3px;}
+.tl-ids{margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;}
+
+/* DARK CARD */
+.dark-card{background:linear-gradient(135deg,var(--charcoal),var(--slate));border-radius:var(--r);padding:18px;color:#fff;margin-bottom:18px;}
+.dark-card h3{font-size:13px;font-weight:700;margin-bottom:8px;}
+.dark-card p{font-size:11px;color:rgba(255,255,255,.6);line-height:1.6;}
+
+.divider{border:none;border-top:1px solid var(--border);margin:20px 0;}
+footer{text-align:center;padding:24px 20px;color:var(--muted);font-size:11px;border-top:1px solid var(--border);}
+footer strong{color:var(--mint-dk);}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-badge">🔄 Revised — Source-Corrected Audit</div>
+  <h1>Let's Go Dutch<br><span>Corrected UI Audit · 2026-04-10</span></h1>
+  <p>Rebuilt from the authoritative assessment doc, updated README, and actual screen ownership table. Previous inference errors corrected throughout.</p>
+  <div class="hero-meta">
+    <div class="hero-stat"><div class="num">R-02 ✓</div><div class="lbl">Revamp done</div></div>
+    <div class="hero-stat"><div class="num">R-03</div><div class="lbl">Next milestone</div></div>
+    <div class="hero-stat"><div class="num">6</div><div class="lbl">Prior errors fixed</div></div>
+    <div class="hero-stat"><div class="num">20</div><div class="lbl">Backlog items</div></div>
+  </div>
+</div>
+
+<!-- CORRECTION BANNER -->
+<div class="banner">
+  <div class="banner-inner">
+    <div class="banner-title">⚠️ Six material corrections from the previous inference-based audit</div>
+    <div class="banner-grid">
+      <div class="correction-item">
+        <div class="label">Phase status</div>
+        <div class="text">Previous audit said "Phase 3 complete". Actual: Phase 1 done; R-02 done+verified; <strong>R-03 is next</strong>; partial R-04 polish landed early.</div>
+        <div class="fixed">✓ Corrected from LGD_UI_AUDIT_ASSESSMENT_2026-04-10.md</div>
+      </div>
+      <div class="correction-item">
+        <div class="label">Groups landing file</div>
+        <div class="text"><code>GroupsScreen.kt</code> is <strong>deprecated</strong>. Active landing is <code>GroupsListScreen.kt</code> — all audit targets must use the new file.</div>
+        <div class="fixed">✓ Corrected from assessment + README module table</div>
+      </div>
+      <div class="correction-item">
+        <div class="label">Settings ownership</div>
+        <div class="text">Settings is <strong>app-owned</strong> at <code>app/.../SettingsScreen.kt</code>, not in <code>feature:settings</code>. Previous prompt targets were wrong.</div>
+        <div class="fixed">✓ Corrected from README screen ownership table</div>
+      </div>
+      <div class="correction-item">
+        <div class="label">Insights file</div>
+        <div class="text">Active Insights lives in <code>feature/insights/InsightsScreen.kt</code>, not <code>feature/ledger/InsightsTab.kt</code>.</div>
+        <div class="fixed">✓ Corrected from assessment + README module table</div>
+      </div>
+      <div class="correction-item">
+        <div class="label">Settlement routing</div>
+        <div class="text">Settlement preview is still routed <strong>inline from <code>LetsGoDutchApp.kt</code></strong>. <code>feature:settlement/SettlementCard.kt</code> exists but is currently unused.</div>
+        <div class="fixed">✓ Corrected from assessment doc</div>
+      </div>
+      <div class="correction-item">
+        <div class="label">Balance card already exists</div>
+        <div class="text">The audit said BalanceSummaryCard was "likely missing". README confirms the <strong>Group Summary hero card with settlement totals is shipped</strong> (R-02).</div>
+        <div class="fixed">✓ Corrected from README "Recent Product Changes"</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="showTab('done')">What's Done</button>
+  <button class="tab" onclick="showTab('screens')">Screen Map</button>
+  <button class="tab" onclick="showTab('audit')">Component Audit</button>
+  <button class="tab" onclick="showTab('backlog')">Scored Backlog</button>
+  <button class="tab" onclick="showTab('sequence')">Sequencing</button>
+  <button class="tab" onclick="showTab('prompts')">Codex Prompts</button>
+  <button class="tab" onclick="showTab('sprint')">Sprint Plan</button>
+</div>
+
+<!-- ══════════════════════ DONE ══════════════════════ -->
+<div id="tab-done" class="section active">
+  <div class="sec-title">What's Actually Shipped (R-02 + partial R-04)</div>
+  <div class="sec-sub">Items confirmed by the updated README "Recent Product Changes" and assessment doc. These do NOT need to be re-built.</div>
+
+  <div class="done-box">
+    <h3>✅ Groups Landing — R-02 Completed &amp; Verified</h3>
+    <div class="done-list">
+      <div class="done-item">Group Summary hero card (equivalent to BalanceSummaryCard)</div>
+      <div class="done-item">Aggregate signed-in-user settlement summary across all groups</div>
+      <div class="done-item">Per-group settlement pill: "They owe you" / "You owe them" / "All settled"</div>
+      <div class="done-item">More compact hero and card heights — more content on screen</div>
+      <div class="done-item">Ambient blurred background art behind the groups surface</div>
+      <div class="done-item">Invite-code pill resized to share row with settlement status</div>
+    </div>
+  </div>
+
+  <div class="done-box">
+    <h3>✅ Auth / Login — Shipped</h3>
+    <div class="done-list">
+      <div class="done-item">Refined auth card in Fresh Mint style</div>
+      <div class="done-item">Transparent outlined name field (old filled placeholder removed)</div>
+      <div class="done-item">Google sign-in + anonymous name-based entry both working</div>
+      <div class="done-item">Updated copy for anonymous sign-in intent</div>
+    </div>
+  </div>
+
+  <div class="done-box">
+    <h3>✅ Notifications &amp; Reminders — Shipped</h3>
+    <div class="done-list">
+      <div class="done-item">Daily local reminder at 10:00 AM when unsettled groups exist</div>
+      <div class="done-item">Suppressed when all groups are settled</div>
+      <div class="done-item">Alarm rescheduled on reboot, app replace, timezone and time change</div>
+      <div class="done-item">Notification channel: letsgodutch_updates</div>
+      <div class="done-item">Local notification rendering for incoming FCM records</div>
+    </div>
+  </div>
+
+  <div class="done-box">
+    <h3>✅ Personal Tools (not in original audit scope)</h3>
+    <div class="done-list">
+      <div class="done-item">Self Expense Tracker with title / period / amount filters</div>
+      <div class="done-item">Monthly summary cards in personal tracker</div>
+      <div class="done-item">Personal expense PDF export</div>
+      <div class="done-item">To-Do task tracker with swipe-to-complete + swipe-to-cancel</div>
+    </div>
+  </div>
+
+  <div class="done-box">
+    <h3>✅ Core Infra (confirmed from tech stack)</h3>
+    <div class="done-list">
+      <div class="done-item">Firebase Analytics wired</div>
+      <div class="done-item">Firebase Crashlytics wired</div>
+      <div class="done-item">Google Mobile Ads SDK integrated</div>
+      <div class="done-item">In-app update + in-app review APIs integrated</div>
+      <div class="done-item">Settlement PDF generation + dispatch to members before final settlement</div>
+      <div class="done-item">Custom-scheme deep links working (App Links needs final verification)</div>
+    </div>
+  </div>
+
+  <div class="done-box" style="background:linear-gradient(135deg,#EFF6FF,#DBEAFE);border-color:#60A5FA;">
+    <h3 style="color:#1E40AF;">🔵 Partial R-04 — Already Landed Early</h3>
+    <div class="done-list">
+      <div class="done-item" style="color:#1E3A8A;">Partial Insights polish landed in <code>feature/insights/InsightsScreen.kt</code></div>
+      <div class="done-item" style="color:#1E3A8A;">Partial Ledger polish landed in <code>feature/ledger/LedgerScreen.kt</code></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ SCREEN MAP ══════════════════════ -->
+<div id="tab-screens" class="section">
+  <div class="sec-title">Authoritative Screen &amp; File Map</div>
+  <div class="sec-sub">Use this table for all Codex prompts. Previous audit used wrong file paths in several places. Source: README module table + assessment doc.</div>
+
+  <table class="file-table">
+    <tr><th>Surface</th><th>Correct file path</th><th>Ownership</th><th>Status note</th></tr>
+    <tr><td><strong>Auth / Login</strong></td><td><code>feature/auth/.../AuthScreen.kt</code></td><td class="act">feature:auth</td><td>R-02 done — Fresh Mint polish applied</td></tr>
+    <tr><td><strong>Groups landing (canonical)</strong></td><td><code>feature/groups/.../GroupsListScreen.kt</code></td><td class="act">feature:groups</td><td>R-02 done — hero card, pills, blur all shipped</td></tr>
+    <tr><td><strong>Groups (deprecated)</strong></td><td><code>feature/groups/.../GroupsScreen.kt</code></td><td class="dep">DEPRECATED</td><td>Do not target in new prompts</td></tr>
+    <tr><td><strong>Add Expense</strong></td><td><code>feature/expenses/.../AddExpenseDialog.kt</code></td><td class="act">feature:expenses</td><td>Functional; UI polish pending R-03</td></tr>
+    <tr><td><strong>Ledger</strong></td><td><code>feature/ledger/.../LedgerScreen.kt</code></td><td class="act">feature:ledger</td><td>Partial R-04 polish landed</td></tr>
+    <tr><td><strong>Insights</strong></td><td><code>feature/insights/.../InsightsScreen.kt</code></td><td class="act">feature:insights</td><td>Partial R-04 polish; real charts still pending</td></tr>
+    <tr><td><strong>Settings</strong></td><td><code>app/.../SettingsScreen.kt</code></td><td class="app">app-owned</td><td>Not in feature module — prompts must target app/</td></tr>
+    <tr><td><strong>App Tour</strong></td><td><code>app/.../ui/AppTourOverlay.kt</code></td><td class="app">app-owned</td><td>R-02 may have touched; pill dots likely pending</td></tr>
+    <tr><td><strong>Settlement</strong></td><td><code>LetsGoDutchApp.kt</code> (inline routing)</td><td class="app">app-owned (inline)</td><td><code>feature:settlement/SettlementCard.kt</code> exists but unused — extraction pending</td></tr>
+    <tr><td><strong>Personal Expense Tracker</strong></td><td><code>app/.../PersonalExpenseTrackerScreen.kt</code></td><td class="app">app-owned</td><td>Functional; audit scope previously missed this</td></tr>
+    <tr><td><strong>To-Do Tracker</strong></td><td><code>app/.../TodoTasksScreen.kt</code></td><td class="app">app-owned</td><td>Functional; audit scope previously missed this</td></tr>
+    <tr><td><strong>Notifications</strong></td><td><code>app/.../notifications/</code></td><td class="app">app-owned</td><td>Local rendering done; server-push (Cloud Functions) not built</td></tr>
+  </table>
+
+  <div class="dark-card">
+    <h3>📦 Module Layout (corrected)</h3>
+    <p><code>core:designsystem</code> owns Fresh Mint theme, colors, type, shapes, shared primitives. <code>feature:insights</code> is a separate module — not inside feature:ledger. <code>feature:settlement</code> has a SettlementCard.kt composable but it is not yet routed. Settlement is still inlined in the app shell.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════ AUDIT ══════════════════════ -->
+<div id="tab-audit" class="section">
+  <div class="sec-title">Revised Component Audit</div>
+  <div class="sec-sub">Scores corrected using the assessment matrix (OBS-* IDs). Items confirmed by README removed from "missing" lists.</div>
+
+  <div class="score-wrap">
+    <h3>📊 Revised Completion Estimates — Updated for Actual State</h3>
+    <div class="score-row"><div class="score-lbl">Groups landing (GroupsListScreen)</div><div class="score-track"><div class="score-fill" style="width:90%;background:linear-gradient(90deg,#3DD68C,#0D9E78);"></div></div><div class="score-pct" style="color:#10B981;">90%</div></div>
+    <div class="score-row"><div class="score-lbl">Auth / Login</div><div class="score-track"><div class="score-fill" style="width:85%;background:linear-gradient(90deg,#3DD68C,#0D9E78);"></div></div><div class="score-pct" style="color:#10B981;">85%</div></div>
+    <div class="score-row"><div class="score-lbl">Design System (Color / Type / Shape)</div><div class="score-track"><div class="score-fill" style="width:70%;background:linear-gradient(90deg,#F5A623,#E07B00);"></div></div><div class="score-pct" style="color:#D97706;">70%</div></div>
+    <div class="score-row"><div class="score-lbl">AppTourOverlay</div><div class="score-track"><div class="score-fill" style="width:50%;background:linear-gradient(90deg,#F5A623,#E07B00);"></div></div><div class="score-pct" style="color:#D97706;">50%</div></div>
+    <div class="score-row"><div class="score-lbl">Settings (app-owned)</div><div class="score-track"><div class="score-fill" style="width:55%;background:linear-gradient(90deg,#F5A623,#E07B00);"></div></div><div class="score-pct" style="color:#D97706;">55%</div></div>
+    <div class="score-row"><div class="score-lbl">AddExpenseDialog</div><div class="score-track"><div class="score-fill" style="width:45%;background:linear-gradient(90deg,#F5A623,#E07B00);"></div></div><div class="score-pct" style="color:#D97706;">45%</div></div>
+    <div class="score-row"><div class="score-lbl">InsightsScreen (feature:insights)</div><div class="score-track"><div class="score-fill" style="width:40%;background:linear-gradient(90deg,#EF4444,#C00);"></div></div><div class="score-pct" style="color:#EF4444;">40%</div></div>
+    <div class="score-row"><div class="score-lbl">Settlement (inline routing)</div><div class="score-track"><div class="score-fill" style="width:35%;background:linear-gradient(90deg,#EF4444,#C00);"></div></div><div class="score-pct" style="color:#EF4444;">35%</div></div>
+    <div class="score-row"><div class="score-lbl">Dark mode discipline / no hardcoded hex</div><div class="score-track"><div class="score-fill" style="width:55%;background:linear-gradient(90deg,#6366F1,#4F46E5);"></div></div><div class="score-pct" style="color:#6366F1;">55%</div></div>
+    <div class="score-row"><div class="score-lbl">Edge-to-edge / WindowInsets</div><div class="score-track"><div class="score-fill" style="width:30%;background:linear-gradient(90deg,#EF4444,#C00);"></div></div><div class="score-pct" style="color:#EF4444;">30%</div></div>
+    <p class="score-note">Groups landing boosted to 90% because R-02 shipped hero card, per-group pills, blur background, and compact cards — previously all "likely missing".</p>
+  </div>
+
+  <div class="audit-grid">
+
+    <div class="audit-card">
+      <div class="ac-head"><div class="ac-icon">👥</div><div class="ac-title">GroupsListScreen<br><span style="font-size:9px;color:var(--muted);">feature/groups — R-02 done</span></div><div class="pill p-done">Strong</div></div>
+      <div class="ac-body">
+        <div class="obs"><div class="obs-dot dg"></div><div class="obs-text"><strong>Hero / balance card:</strong> Group Summary hero confirmed shipped with aggregate settlement totals.</div></div>
+        <div class="obs"><div class="obs-dot dg"></div><div class="obs-text"><strong>Per-group balance pills:</strong> They owe you / You owe them / All settled — all three states confirmed.</div></div>
+        <div class="obs"><div class="obs-dot dg"></div><div class="obs-text"><strong>Backdrop blur background art:</strong> Ambient blurred art confirmed — this was the backdrop blur the audit said was "likely missing".</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-GR-01 Greeting bar:</strong> Time-of-day "Good morning 👋" logic — not confirmed by README; status unclear.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-GR-03 Emoji hash icons:</strong> Group emoji from name hash — not confirmed; may still be a generic icon.</div></div>
+      </div>
+    </div>
+
+    <div class="audit-card">
+      <div class="ac-head"><div class="ac-icon">🎨</div><div class="ac-title">Design System<br><span style="font-size:9px;color:var(--muted);">core:designsystem</span></div><div class="pill p-part">Partial</div></div>
+      <div class="ac-body">
+        <div class="obs"><div class="obs-dot dg"></div><div class="obs-text"><strong>OBS-DS-01 Colors:</strong> Mint color scheme mapped — R-02 ships consistent Fresh Mint styling proving the token layer is correct.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-DS-02 Sora font:</strong> Font likely wired but cold-launch flash may occur without bundled TTF fallback. Add <code>res/font/sora_*.ttf</code>.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-DS-03 Shape.kt:</strong> Custom corner radii may still be default values if Shape.kt was not explicitly updated.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-DS-04 GradientButton:</strong> Still likely absent or inconsistently used; primary CTAs probably use standard FilledButton.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-DS-05 Dark scheme:</strong> <code>onPrimary = Charcoal</code> (not white) in dark mode is a key spec detail easily missed in auto-generated dark schemes.</div></div>
+      </div>
+    </div>
+
+    <div class="audit-card">
+      <div class="ac-head"><div class="ac-icon">🎓</div><div class="ac-title">AppTourOverlay<br><span style="font-size:9px;color:var(--muted);">app/ui/AppTourOverlay.kt</span></div><div class="pill p-part">Partial</div></div>
+      <div class="ac-body">
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-AT-01 Dark gradient dialog:</strong> May be partially applied — R-02 touched login, which is adjacent to the tour.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-AT-02 Animated pill progress:</strong> Still the most likely unfixed detail — old asterisk+circle dots. Low complexity, high visibility fix.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-AT-03 Feature chip uppercase labels:</strong> The letterSpacing=1.5sp detail is easily omitted.</div></div>
+        <div class="obs"><div class="obs-dot dg"></div><div class="obs-text"><strong>OBS-AT-05 Step data:</strong> 5 steps with text are copy-paste simple — almost certainly complete.</div></div>
+      </div>
+    </div>
+
+    <div class="audit-card">
+      <div class="ac-head"><div class="ac-icon">⚙️</div><div class="ac-title">SettingsScreen<br><span style="font-size:9px;color:var(--muted);">app/SettingsScreen.kt — app-owned</span></div><div class="pill p-part">Partial</div></div>
+      <div class="ac-body">
+        <div class="obs"><div class="obs-dot dg"></div><div class="obs-text"><strong>OBS-ST-01 Profile card:</strong> Dark premium surface likely implemented — it's the most memorable part of the prompt.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-ST-04 GradientButton:</strong> "Save Changes" may revert to FilledButton if GradientButton composable isn't built in design system first.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-ST-05 WindowInsets:</strong> Status bar inset padding is frequently absent on app-owned screens. High visual priority on Android 15 edge-to-edge.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-ST-06 Account ID:</strong> <code>userId.take(8).uppercase()</code> as a visible stable ID not confirmed. Trust signal + debugging aid.</div></div>
+      </div>
+    </div>
+
+    <div class="audit-card">
+      <div class="ac-head"><div class="ac-icon">💸</div><div class="ac-title">AddExpenseDialog<br><span style="font-size:9px;color:var(--muted);">feature/expenses/AddExpenseDialog.kt</span></div><div class="pill p-part">Partial</div></div>
+      <div class="ac-body">
+        <div class="obs"><div class="obs-dot dg"></div><div class="obs-text"><strong>OBS-AE-01 Sheet container:</strong> ModalBottomSheet with drag handle is default Compose pattern — correct.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-AE-03 ₹ prefix field:</strong> 24sp bold amount with ₹ in mint — distinctive detail that may be missing or partially styled.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-AE-04 Member chip selector:</strong> Horizontal LazyRow of filled/outlined chips with checkmark for payer selection — likely still a dropdown.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-AE-05 SegmentedButton tabs:</strong> Equal/Exact/%/Custom — may exist but mint active styling needs manual override.</div></div>
+      </div>
+    </div>
+
+    <div class="audit-card">
+      <div class="ac-head"><div class="ac-icon">📊</div><div class="ac-title">InsightsScreen<br><span style="font-size:9px;color:var(--muted);">feature/insights/InsightsScreen.kt</span></div><div class="pill p-miss">Needs Work</div></div>
+      <div class="ac-body">
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-IN-01 Dark surface:</strong> Partial R-04 polish landed; dark background may be partially there.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-IN-02 Real charts:</strong> No charting library in declared dependencies. Charts almost certainly still placeholder. This is the highest-impact remaining gap.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-IN-05 Legend row:</strong> Colored dot + member name + % legend below pie — likely absent without a charting library.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-IN-04 Pill tab selector:</strong> Ledger/Insights tab as rounded pill (not underline) — may be partially done from partial R-04.</div></div>
+      </div>
+    </div>
+
+    <div class="audit-card">
+      <div class="ac-head"><div class="ac-icon">📄</div><div class="ac-title">Settlement (inline routing)<br><span style="font-size:9px;color:var(--muted);">LetsGoDutchApp.kt + feature:settlement/SettlementCard.kt (unused)</span></div><div class="pill p-miss">Needs Work</div></div>
+      <div class="ac-body">
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-SE-02 Dark summary card:</strong> Partial — total spend / date range on dark surface may be partly styled from R-04 polish.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-SE-03 PaymentRow:</strong> Avatar→Arrow→Avatar component with "Raj pays Priya ₹420" layout is almost certainly missing — custom component.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-SE-04 PDF-first gate:</strong> Functional (Phase 3), but disabled/success state visual styling likely generic.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>Routing debt:</strong> Settlement still inlined in <code>LetsGoDutchApp.kt</code>. <code>SettlementCard.kt</code> should be promoted and properly routed.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-SE-01 Confetti:</strong> Canvas confetti on settlement success — delight layer, lowest priority but highest screenshot value.</div></div>
+      </div>
+    </div>
+
+    <div class="audit-card">
+      <div class="ac-head"><div class="ac-icon">🌙</div><div class="ac-title">Theme Discipline / Dark Mode<br><span style="font-size:9px;color:var(--muted);">cross-cutting</span></div><div class="pill p-part">Partial</div></div>
+      <div class="ac-body">
+        <div class="obs"><div class="obs-dot dg"></div><div class="obs-text"><strong>OBS-DM-01 Toggle:</strong> isSystemInDarkTheme() wired — R-02 ships consistent light styling proving theme works.</div></div>
+        <div class="obs"><div class="obs-dot da"></div><div class="obs-text"><strong>OBS-DM-02 Dark scheme values:</strong> onPrimary=Charcoal, surfaceVariant=0x243046 details likely not manually set.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-DM-03 Hardcoded Color(0x...) literals:</strong> Any hex in screen composables bypasses the theme. Run a grep sweep.</div></div>
+        <div class="obs"><div class="obs-dot dr"></div><div class="obs-text"><strong>OBS-DM-04 Edge-to-edge:</strong> WindowInsets.statusBars on scaffolds — likely incomplete on most app-owned screens. Android 15 default forces edge-to-edge.</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════ BACKLOG ══════════════════════ -->
+<div id="tab-backlog" class="section">
+  <div class="sec-title">Scored Backlog — All Items</div>
+  <div class="sec-sub">Directly mapped from the assessment doc scoring matrix (GAP-*, CMP-*, RM-*, IND-* IDs). Items confirmed done in R-02 are excluded.</div>
+
+  <table class="backlog-table">
+    <tr><th>ID</th><th>Item</th><th>Criticality</th><th>Usefulness</th><th>Complexity</th><th>Solo feasibility</th></tr>
+    <tr><td><span class="id-badge">GAP-01</span></td><td><strong>BalanceSummaryCard on groups</strong> — <em>NOTE: R-02 shipped equivalent. Verify against GroupsListScreen.kt; may only need minor polish</em></td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Medium</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">GAP-02</span></td><td><strong>Real Insights charts</strong> — InsightsScreen.kt; add charting library, wire to data</td><td class="h-crit">High</td><td class="h-crit">High</td><td>Medium</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">GAP-03</span></td><td><strong>Hardcoded hex color sweep</strong> — grep for Color(0x) in all screen files, replace with MaterialTheme.colorScheme refs</td><td class="h-crit">High</td><td class="h-crit">High</td><td>Medium</td><td class="m-feas">Medium</td></tr>
+    <tr><td><span class="id-badge">GAP-04</span></td><td><strong>GradientButton consistency</strong> — replace FilledButton primary CTAs across all screens</td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">GAP-05</span></td><td><strong>WindowInsets edge-to-edge cleanup</strong> — all major scaffolds, especially app-owned screens</td><td class="h-crit">High</td><td class="h-crit">High</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">GAP-06</span></td><td><strong>AppTour animated pill progress</strong> — replace asterisk dots with animateDpAsState width-expanding pills</td><td class="m-crit">Medium</td><td class="m-crit">Medium</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">GAP-07</span></td><td><strong>Account ID in Settings</strong> — userId.take(8).uppercase() in DM Mono, Settings profile card</td><td class="m-crit">Medium</td><td class="m-crit">Medium</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">GAP-08</span></td><td><strong>Sora font cold-launch fallback</strong> — bundle res/font/sora_*.ttf to prevent FOUT on first launch</td><td>Low</td><td class="m-crit">Medium</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">GAP-10</span></td><td><strong>Settlement PaymentRow</strong> — Avatar→Arrow→Avatar layout in settlement; promote SettlementCard.kt from feature:settlement</td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">IND-01</span></td><td><strong>UPI deep-link settlement</strong> — "Pay via GPay/PhonePe/Paytm" intent from PaymentRow</td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">IND-02</span></td><td><strong>WhatsApp share settlement</strong> — share "Raj owes ₹420 to Priya — UPI: 9876@upi" as WhatsApp text</td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">IND-03</span></td><td><strong>Indian lakh-crore number formatting</strong> — ₹1,23,456 not ₹1,234,567; NumberFormat with Indian locale</td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">RM-B01</span></td><td><strong>FCM server-push</strong> — Cloud Functions triggers on expense add/delete/settle; Android already ready</td><td class="h-crit">High</td><td class="h-crit">High</td><td>Medium</td><td class="m-feas">Medium (backend)</td></tr>
+    <tr><td><span class="id-badge">RM-B04</span></td><td><strong>Expense categories</strong> — enum + chip row in AddExpenseDialog; category breakdown in InsightsScreen</td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Medium</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">RM-B05</span></td><td><strong>Expense notes / comments</strong> — 140-char optional note field in AddExpenseDialog</td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">RM-B06</span></td><td><strong>Expense date picker</strong> — custom date on add; critical for backdated entry; unlocks monthly trend accuracy</td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">RM-B07</span></td><td><strong>Activity feed</strong> — activities/{groupId} RTDB; running log of group actions; "Raj added Dinner ₹800 · 2h ago"</td><td class="h-crit">High</td><td class="h-crit">High</td><td>Medium</td><td class="m-feas">Medium</td></tr>
+    <tr><td><span class="id-badge">RM-B08</span></td><td><strong>Indian number formatting</strong> — already listed as IND-03 above; high-leverage tiny task</td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Low</td><td class="h-feas">High</td></tr>
+    <tr><td><span class="id-badge">RM-C03</span></td><td><strong>Group budget tracker</strong> — set trip budget; Insights shows spend vs budget; better than Splitwise premium</td><td class="m-crit">Medium</td><td class="h-crit">High</td><td>Medium</td><td class="m-feas">Medium</td></tr>
+    <tr><td><span class="id-badge">RM-C02</span></td><td><strong>Recurring expenses</strong> — flat rent / subscriptions; WorkManager scheduler; architecture-heavy</td><td class="h-crit">High</td><td class="h-crit">High</td><td>High</td><td class="m-feas">Medium</td></tr>
+  </table>
+</div>
+
+<!-- ══════════════════════ SEQUENCE ══════════════════════ -->
+<div id="tab-sequence" class="section">
+  <div class="sec-title">Recommended Solo-Developer Sequencing</div>
+  <div class="sec-sub">Directly from Section 7 of the assessment doc, adjusted for R-02 completions. Best solo path: finish visible UI gaps → India differentiators → data richness → retention/architecture.</div>
+
+  <div class="seq-grid">
+
+    <div class="seq-card hot">
+      <div class="seq-tag red">🔴 Do Now — Sprint 1</div>
+      <h4>Highest-value remaining gaps</h4>
+      <ul>
+        <li><strong>GAP-02</strong> — Real charts in InsightsScreen.kt. Most glaring unfinished state.</li>
+        <li><strong>GAP-03</strong> — Hardcoded hex color sweep. Prevents dark mode drift.</li>
+        <li><strong>GAP-05</strong> — WindowInsets edge-to-edge on all scaffolds. Visible on Android 15.</li>
+        <li><strong>GAP-07</strong> — Account ID row in Settings. Fast, useful, trust-building.</li>
+        <li><strong>IND-03</strong> — Indian lakh number formatting. Tiny task, product-wide payoff.</li>
+      </ul>
+    </div>
+
+    <div class="seq-card hot">
+      <div class="seq-tag red">🔴 Do Now — Sprint 2</div>
+      <h4>Theme consistency + CTAs</h4>
+      <ul>
+        <li><strong>GAP-04</strong> — GradientButton sweep across all primary CTAs.</li>
+        <li><strong>OBS-DS-05</strong> — Wire dark scheme onPrimary=Charcoal spec value.</li>
+        <li><strong>GAP-08</strong> — Bundle Sora TTF fonts to res/font/ to prevent FOUT.</li>
+        <li><strong>GAP-06</strong> — AppTour animated pill progress dots.</li>
+        <li><strong>GAP-10</strong> — PaymentRow component + promote SettlementCard.kt.</li>
+      </ul>
+    </div>
+
+    <div class="seq-card warm">
+      <div class="seq-tag amber">🟡 Do Next — Sprint 3</div>
+      <h4>India differentiators (pure moat)</h4>
+      <ul>
+        <li><strong>IND-01</strong> — UPI deep-link payment intent from PaymentRow.</li>
+        <li><strong>IND-02</strong> — WhatsApp share settlement summary + UPI link.</li>
+        <li><strong>RM-B05</strong> — Expense notes / comments field (140 chars).</li>
+        <li><strong>RM-B06</strong> — Expense date picker for backdated entry.</li>
+      </ul>
+    </div>
+
+    <div class="seq-card warm">
+      <div class="seq-tag amber">🟡 Do Next — Sprint 4</div>
+      <h4>Data richness + Insights fuel</h4>
+      <ul>
+        <li><strong>RM-B04</strong> — Expense categories (Food/Travel/Stay/Fun/Other).</li>
+        <li>Category breakdown card in InsightsScreen once categories exist.</li>
+        <li><strong>RM-B01</strong> — FCM Cloud Functions triggers (backend task).</li>
+      </ul>
+    </div>
+
+    <div class="seq-card cool">
+      <div class="seq-tag blue">🔵 Defer Until Core UX Stable</div>
+      <h4>Bigger-scope items</h4>
+      <ul>
+        <li><strong>RM-B07</strong> — Activity feed (group timeline) — useful but wider scope.</li>
+        <li><strong>RM-C03</strong> — Group budget tracker — good differentiator after UI closure.</li>
+        <li><strong>RM-C02</strong> — Recurring expenses — complex scheduler architecture.</li>
+        <li>Receipt photos, group archive, multi-currency — all v2+ scope.</li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="dark-card">
+    <h3>🧭 Codex Agent Session Preamble (copy this verbatim)</h3>
+    <p>Add to every new Codex session: <strong>"LGD status: R-02 done+verified. R-03 is next. Do not modify GroupsScreen.kt (deprecated — use GroupsListScreen.kt). Settings is app-owned at app/SettingsScreen.kt. Insights is at feature/insights/InsightsScreen.kt. Settlement inline in LetsGoDutchApp.kt; SettlementCard.kt in feature:settlement exists but is unused. All amounts in paise as Long. Indian lakh formatting required. No hardcoded Color(0x) hex in screen files — use MaterialTheme.colorScheme only. Firebase RTDB, Kotlin, Jetpack Compose M3, MVVM."</strong></p>
+  </div>
+</div>
+
+<!-- ══════════════════════ PROMPTS ══════════════════════ -->
+<div id="tab-prompts" class="section">
+  <div class="sec-title">Corrected Codex Prompts</div>
+  <div class="sec-sub">All file paths corrected from the previous audit. Use these in order — they map directly to the sequencing above.</div>
+
+  <div class="prompt-card">
+    <div class="pc-head"><div class="pc-icon">📈</div><div class="pc-title">Add real charts to InsightsScreen — GAP-02</div><div class="pc-pri">Sprint 1 · Priority 1</div></div>
+    <div class="pc-body">
+      <p>Target: <code>feature/insights/InsightsScreen.kt</code> and <code>feature/insights/InsightsViewModel.kt</code>. Charting library needed first.</p>
+      <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cm">// feature/insights/build.gradle.kts + InsightsScreen.kt + InsightsViewModel.kt</span>
+
+<span class="kw">1. feature/insights/build.gradle.kts</span> — Add charting library:
+   implementation("co.yml.ycharts:ycharts:2.1.0")
+   <span class="cm">// or: implementation("com.patrykandpatrick.vico:compose:1.x.x")</span>
+
+<span class="kw">2. InsightsViewModel.kt</span> — Expose new StateFlows derived from existing expense/balance data:
+   val memberShareData: StateFlow&lt;List&lt;Pair&lt;String,Float&gt;&gt;&gt;  <span class="cm">// name → fraction 0..1</span>
+   val monthlyTrendData: StateFlow&lt;List&lt;Pair&lt;String,Long&gt;&gt;&gt;  <span class="cm">// "Jan" → paise total</span>
+   val categoryData: StateFlow&lt;Map&lt;String,Float&gt;&gt;            <span class="cm">// category → fraction (future)</span>
+
+<span class="kw">3. InsightsScreen.kt</span>
+   Scaffold containerColor = Color(0xFF1C2333)  <span class="cm">// dark surface for the whole screen</span>
+
+   <span class="str">ExpensePieChartCard:</span>
+   - Card bg: Color(0xFF243046), corner 20dp
+   - Pie slices use palette: [#3DD68C, #0D7A6E, #F5A623, #6366F1]
+   - Legend row below: FlowRow of dot + name + pct per member
+   - Text white; muted labels rgba(white,0.65)
+
+   <span class="str">MonthlyTrendCard:</span>
+   - Card bg: Color(0xFF243046)
+   - Horizontal bars; fill = Brush.horizontalGradient(mint→teal)
+   - Animate bar widths with animateFloatAsState on LaunchedEffect(Unit)
+   - Month label left (muted), ₹ amount right (mint) — use IndianCurrencyFormatter
+
+   <span class="str">Pill tab selector (Ledger / Insights):</span>
+   - Replace underline TabRow with rounded-pill Container
+   - Active tab: Brush.horizontalGradient(mint→teal) background, white text
+   - Inactive: Color(0x1AFFFFFF) background, muted text</div>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="pc-head"><div class="pc-icon">🔍</div><div class="pc-title">Hardcoded hex sweep + GradientButton — GAP-03 + GAP-04</div><div class="pc-pri">Sprint 1 · Priority 2</div></div>
+    <div class="pc-body">
+      <p>One combined Codex pass. grep-and-replace hardcoded colors, build GradientButton, apply consistently.</p>
+      <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cm">// core/designsystem + all feature and app screen files</span>
+
+<span class="kw">Step 1 — Build GradientButton in core/designsystem</span>:
+   <span class="cm">// core/designsystem/src/.../component/GradientButton.kt</span>
+   @Composable
+   fun GradientButton(text: String, onClick: () -&gt; Unit, modifier: Modifier = Modifier) {
+     val gradient = Brush.horizontalGradient(listOf(Color(0xFF3DD68C), Color(0xFF0D7A6E)))
+     Box(
+       modifier = modifier
+         .shadow(elevation = 8.dp, shape = RoundedCornerShape(14.dp),
+                 spotColor = Color(0xFF3DD68C))
+         .background(gradient, shape = RoundedCornerShape(14.dp))
+         .clickable { onClick() }
+         .padding(horizontal = 20.dp, vertical = 13.dp),
+       contentAlignment = Alignment.Center
+     ) {
+       Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+     }
+   }
+
+<span class="kw">Step 2 — Replace hardcoded colors across ALL screen files:</span>
+   Search pattern: <span class="str">Color(0x</span>  in every .kt file under app/ and feature/
+   Replacements:
+   - Color(0xFF1C2333)  → MaterialTheme.colorScheme.surface
+   - Color(0xFF3DD68C)  → MaterialTheme.colorScheme.primary
+   - Color(0xFF0D7A6E)  → MaterialTheme.colorScheme.secondary
+   - Color(0xFFF4F7F5)  → MaterialTheme.colorScheme.background
+   - Color(0xFFF5A623)  → MaterialTheme.colorScheme.tertiary  <span class="cm">// or a custom token</span>
+
+<span class="kw">Step 3 — Replace primary FilledButton calls:</span>
+   In every screen: find <span class="str">Button(onClick=...) { Text("Save") }</span> or
+   <span class="str">FilledButton(</span> pattern on primary CTAs.
+   Replace with: <span class="str">GradientButton(text="Save Changes", onClick={...})</span>
+   Target screens: SettingsScreen.kt, AddExpenseDialog.kt, AuthScreen.kt, settlement inline</div>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="pc-head"><div class="pc-icon">📐</div><div class="pc-title">WindowInsets + edge-to-edge on all scaffolds — GAP-05</div><div class="pc-pri">Sprint 1 · Priority 3</div></div>
+    <div class="pc-body">
+      <p>Android 15 forces edge-to-edge by default. Without this, content hides under the status bar and nav bar on modern devices.</p>
+      <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cm">// MainActivity.kt + all Scaffold-containing composables</span>
+
+<span class="kw">MainActivity.kt</span> — In onCreate(), before setContent:
+   WindowCompat.setDecorFitsSystemWindows(window, false)
+
+<span class="kw">Every Scaffold in app-owned screens</span> (SettingsScreen, PersonalExpenseTrackerScreen,
+TodoTasksScreen, AppTourOverlay, inline settlement):
+   Scaffold(
+     modifier = Modifier.windowInsetsPadding(WindowInsets.systemBars),
+     topBar = { ... },
+     ...
+   )
+
+<span class="kw">For screens with a CenterAlignedTopAppBar</span>:
+   CenterAlignedTopAppBar(
+     windowInsets = WindowInsets.statusBars, <span class="cm">// ensures correct top padding</span>
+     ...
+   )
+
+<span class="kw">For ModalBottomSheet</span> (AddExpenseDialog):
+   ModalBottomSheet(
+     windowInsets = WindowInsets.navigationBars,
+     ...
+   )
+
+<span class="kw">Status bar colour</span> (in LgdTheme or MainActivity):
+   val systemUiController = rememberSystemUiController()
+   SideEffect {
+     systemUiController.setStatusBarColor(
+       color = if (darkTheme) Color(0xFF1C2333) else Color(0xFF0D7A6E),
+       darkIcons = !darkTheme
+     )
+   }</div>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="pc-head"><div class="pc-icon">📱</div><div class="pc-title">UPI deep-link + WhatsApp share on Settlement — IND-01 + IND-02</div><div class="pc-pri">Sprint 3 · Priority 4</div></div>
+    <div class="pc-body">
+      <p>Target: inline settlement in <code>LetsGoDutchApp.kt</code> + <code>feature/settlement/SettlementCard.kt</code> (promote this first).</p>
+      <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cm">// feature/settlement/SettlementCard.kt + app/LetsGoDutchApp.kt</span>
+
+<span class="kw">Step 1 — Promote SettlementCard.kt</span>:
+   Route settlement preview to feature:settlement/SettlementCard.kt
+   instead of inlining it in LetsGoDutchApp.kt.
+
+<span class="kw">Step 2 — PaymentRow composable</span> (in SettlementCard.kt):
+   Row { InitialsAvatar(payer) → Icon(ArrowForward, mint) → InitialsAvatar(payee) }
+   Text: "₹{formatINR(amountPaise)}" in titleMedium mint bold
+   Trailing: UpiButton + ShareButton icon buttons
+
+<span class="kw">Step 3 — UPI intent:</span>
+   val upiUri = Uri.parse(
+     "upi://pay?pa=${payee.upiId}&pn=${payee.displayName}" +
+     "&am=${amountRupees}&cu=INR&tn=LGD+${group.groupName}"
+   )
+   context.startActivity(Intent.createChooser(
+     Intent(Intent.ACTION_VIEW, upiUri), "Pay via UPI"
+   ))
+   <span class="cm">// If payee.upiId is blank → show a Snackbar: "Ask Priya to add their UPI ID in Settings"</span>
+
+<span class="kw">Step 4 — WhatsApp share:</span>
+   val msg = "${payer.displayName} owes ${payee.displayName} " +
+     "${formatINR(amountPaise)} for ${group.groupName}."
+   val intent = Intent(Intent.ACTION_SEND).apply {
+     type = "text/plain"; putExtra(Intent.EXTRA_TEXT, msg)
+     setPackage("com.whatsapp") <span class="cm">// falls back to generic share sheet if WA absent</span>
+   }
+   context.startActivity(Intent.createChooser(intent, "Share via"))
+
+<span class="kw">Step 5 — Add upiId field to UserProfile / Settings:</span>
+   Optional String field in UserProfile; editable in SettingsScreen.kt
+   Stored at users/{uid}/profile/upiId in Firebase RTDB.</div>
+    </div>
+  </div>
+
+  <div class="prompt-card">
+    <div class="pc-head"><div class="pc-icon">🏷️</div><div class="pc-title">Expense categories + notes + date picker — RM-B04 + RM-B05 + RM-B06</div><div class="pc-pri">Sprint 4 · Priority 5</div></div>
+    <div class="pc-body">
+      <p>Three small model additions bundled into one sprint. All target <code>feature/expenses/AddExpenseDialog.kt</code>.</p>
+      <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="cm">// core/model/Expense.kt + feature/expenses/AddExpenseDialog.kt</span>
+
+<span class="kw">1. core/model/Expense.kt</span> — Add nullable default fields:
+   val category: ExpenseCategory = ExpenseCategory.OTHER
+   val note: String = ""          <span class="cm">// max 140 chars</span>
+   val expenseDateMs: Long = 0L   <span class="cm">// 0 = use createdAtEpochMs for back-compat</span>
+
+<span class="kw">2. core/model/ExpenseCategory.kt</span> (new file):
+   enum class ExpenseCategory(val emoji: String, val label: String) {
+     FOOD("🍱","Food"), TRAVEL("✈️","Travel"), STAY("🏠","Stay"),
+     ENTERTAINMENT("🎮","Fun"), SHOPPING("🛍️","Shopping"),
+     UTILITIES("⚡","Utilities"), OTHER("📦","Other")
+   }
+
+<span class="kw">3. AddExpenseDialog.kt</span> — Add three new fields below description:
+   <span class="str">Category picker:</span>
+   LazyRow of 7 AssistChip composables (emoji + label)
+   Selected chip: filled mint background, white text
+   Unselected chip: outlined, surfaceVariant background
+
+   <span class="str">Note field:</span>
+   OutlinedTextField(singleLine=true, maxLines=1) with 140-char counter
+   Placeholder: "Optional note…"
+   focusedBorderColor = MaterialTheme.colorScheme.primary
+
+   <span class="str">Date picker:</span>
+   TextButton "📅 Today" that opens DatePickerDialog
+   Shows selected date as "12 Apr" in mint text when changed from today</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════ SPRINT ══════════════════════ -->
+<div id="tab-sprint" class="section">
+  <div class="sec-title">Revised Sprint Plan — 6 Sprints</div>
+  <div class="sec-sub">Based on Section 6 of the assessment doc, updated for R-02 completions. SP-01 is adjusted since BalanceSummaryCard is already shipped.</div>
+
+  <div class="timeline">
+
+    <div class="tl-item">
+      <div class="tl-dot filled"></div>
+      <div class="tl-week">Sprint 1 — Insights + Theme Discipline (SP-02 equivalent)</div>
+      <div class="tl-title">Real charts + hardcoded hex sweep + WindowInsets</div>
+      <div class="tl-desc">Add charting library to feature:insights. PieChartCard + HorizontalBarCard with dark surface. Grep all screen files for Color(0x) literals and replace with MaterialTheme refs. WindowInsets.systemBars on all Scaffolds. Build GradientButton in core:designsystem.</div>
+      <div class="tl-ids">
+        <span class="id-badge">GAP-02</span><span class="id-badge">GAP-03</span><span class="id-badge">GAP-04</span><span class="id-badge">GAP-05</span>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-week">Sprint 2 — Settings + Tour + Settlement Polish (SP-03 equivalent)</div>
+      <div class="tl-title">Account ID · AppTour pill dots · PaymentRow · promote SettlementCard</div>
+      <div class="tl-desc">Account ID row in app/SettingsScreen.kt. Animated pill progress in AppTourOverlay.kt (replace asterisks). Promote feature:settlement/SettlementCard.kt into routing. Build PaymentRow (Avatar→Arrow→Avatar) composable. Bundle Sora fonts as TTF resources.</div>
+      <div class="tl-ids">
+        <span class="id-badge">GAP-06</span><span class="id-badge">GAP-07</span><span class="id-badge">GAP-08</span><span class="id-badge">GAP-10</span>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-week">Sprint 3 — India Differentiators (SP-04 equivalent)</div>
+      <div class="tl-title">UPI deep-link · WhatsApp share · Indian number formatting</div>
+      <div class="tl-desc">UPI intent from PaymentRow. WhatsApp share of settlement summary. upiId field in UserProfile + Settings. IndianCurrencyFormatter utility using Indian locale lakh-crore format applied everywhere.</div>
+      <div class="tl-ids">
+        <span class="id-badge">IND-01</span><span class="id-badge">IND-02</span><span class="id-badge">IND-03</span>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-week">Sprint 4 — Expense Richness (SP-05+06 combined)</div>
+      <div class="tl-title">Notes · Date picker · Categories · FCM Cloud Functions</div>
+      <div class="tl-desc">Expense notes (140 char) + date picker + category enum + chip picker in AddExpenseDialog.kt. Category breakdown card in InsightsScreen once data exists. Firebase Cloud Functions for FCM push on expense events (backend, separate session).</div>
+      <div class="tl-ids">
+        <span class="id-badge">RM-B01</span><span class="id-badge">RM-B04</span><span class="id-badge">RM-B05</span><span class="id-badge">RM-B06</span>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-week">Sprint 5 — Social Layer (SP-07 equivalent)</div>
+      <div class="tl-title">Activity Feed (group timeline)</div>
+      <div class="tl-desc">activities/{groupId} RTDB node. ActivityRepository. Activity entry written on: expense add, expense delete, member join, settlement. ActivityFeedScreen or bottom-sheet in group detail. "Raj added Dinner ₹800 · 2h ago" row layout.</div>
+      <div class="tl-ids">
+        <span class="id-badge">RM-B07</span>
+      </div>
+    </div>
+
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-week">Sprint 6 — Advanced Features</div>
+      <div class="tl-title">Group budget tracker · AddExpenseDialog member-chip selector</div>
+      <div class="tl-desc">Set trip budget per group; Insights shows spend vs budget progress bar. OBS-AE-04: replace dropdown payer selector with horizontal LazyRow of filled/outlined member chips. Dark scheme onPrimary and surfaceVariant values verified.</div>
+      <div class="tl-ids">
+        <span class="id-badge">OBS-AE-04</span><span class="id-badge">RM-C03</span><span class="id-badge">OBS-DS-05</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>Built for <strong>Let's Go Dutch</strong> · Budding Intents · Revised Audit — April 2026 · Source: LGD_UI_AUDIT_ASSESSMENT_2026-04-10.md + README.md</footer>
+
+<script>
+function showTab(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  event.target.classList.add('active');
+}
+function copyCode(btn){
+  const text=btn.parentElement.innerText.replace('Copy','').replace('Copied!','').trim();
+  navigator.clipboard.writeText(text).then(()=>{
+    btn.textContent='Copied!';btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},2000);
+  });
+}
+window.addEventListener('load',()=>{
+  document.querySelectorAll('.score-fill').forEach(f=>{
+    const t=f.style.width;f.style.width='0';
+    setTimeout(()=>{f.style.width=t;},150);
+  });
+});
+</script>
+</body>
+</html>

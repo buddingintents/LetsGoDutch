@@ -12,18 +12,25 @@ import com.buddingintents.letsgodutch.core.model.Balance
 import com.buddingintents.letsgodutch.core.model.Expense
 import com.buddingintents.letsgodutch.core.model.ExitLiabilityChoice
 import com.buddingintents.letsgodutch.core.model.Group
+import com.buddingintents.letsgodutch.core.model.GroupActivity
+import com.buddingintents.letsgodutch.core.model.GroupActivityType
 import com.buddingintents.letsgodutch.core.model.JoinGroupPreview
 import com.buddingintents.letsgodutch.core.model.Member
 import com.buddingintents.letsgodutch.core.model.PersonalExpenseEntry
 import com.buddingintents.letsgodutch.core.model.Role
+import com.buddingintents.letsgodutch.core.model.SettlementUpiTransaction
 import com.buddingintents.letsgodutch.core.model.SplitShare
 import com.buddingintents.letsgodutch.core.model.SplitType
 import com.buddingintents.letsgodutch.core.model.TodoTask
 import com.buddingintents.letsgodutch.core.model.TodoTaskStatus
 import com.buddingintents.letsgodutch.core.model.UserProfile
+import com.buddingintents.letsgodutch.core.model.isValidUpiId
+import com.buddingintents.letsgodutch.core.model.normalizeUpiId
+import com.buddingintents.letsgodutch.core.model.successfulSettlementTransactions
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 private object DemoStore {
@@ -41,6 +48,7 @@ private object DemoStore {
             country = "India",
             primaryAuthProvider = "google.com",
             linkedProviders = listOf("google.com"),
+            upiId = "aditi@okaxis",
         ),
     )
     val recentAnonymousDisplayNames = MutableStateFlow<List<String>>(emptyList())
@@ -51,6 +59,10 @@ private object DemoStore {
     val membersByGroup = mutableMapOf<String, MutableStateFlow<List<Member>>>()
 
     val expensesByGroup = mutableMapOf<String, MutableStateFlow<List<Expense>>>()
+
+    val groupActivitiesByGroup = mutableMapOf<String, MutableStateFlow<List<GroupActivity>>>()
+
+    val settlementActivitiesByGroup = mutableMapOf<String, MutableStateFlow<List<SettlementUpiTransaction>>>()
 
     val todoByUser = mutableMapOf(
         ownerId to MutableStateFlow(
@@ -167,20 +179,28 @@ class InMemoryAuthRepository : AuthRepository {
         }
     }
 
-    override suspend fun updateDisplayName(displayName: String): Result<UserProfile> {
+    override suspend fun updateProfile(displayName: String, upiId: String): Result<UserProfile> {
         return runCatching {
             val normalizedName = displayName.trim()
+            val normalizedUpiId = upiId.normalizeUpiId()
             require(normalizedName.isNotBlank()) { "Display name is required." }
+            require(normalizedUpiId.isValidUpiId()) { "Enter a valid UPI ID or leave it blank." }
 
             val current = DemoStore.user.value ?: error("Please sign in again.")
-            val updatedProfile = current.copy(displayName = normalizedName)
+            val updatedProfile = current.copy(
+                displayName = normalizedName,
+                upiId = normalizedUpiId,
+            )
             DemoStore.user.value = updatedProfile
 
             DemoStore.membersByGroup.keys.forEach { groupId ->
                 val membersFlow = DemoStore.membersByGroup[groupId] ?: return@forEach
                 membersFlow.value = membersFlow.value.map { member ->
                     if (member.userId == updatedProfile.userId) {
-                        member.copy(displayName = normalizedName)
+                        member.copy(
+                            displayName = normalizedName,
+                            upiId = normalizedUpiId,
+                        )
                     } else {
                         member
                     }
@@ -201,6 +221,13 @@ class InMemoryAuthRepository : AuthRepository {
 
             updatedProfile
         }
+    }
+
+    override suspend fun updateDisplayName(displayName: String): Result<UserProfile> {
+        return updateProfile(
+            displayName = displayName,
+            upiId = DemoStore.user.value?.upiId.orEmpty(),
+        )
     }
 
     override suspend fun signOut() {
@@ -233,6 +260,9 @@ class InMemoryGroupRepository : GroupRepository {
     override fun observeMembers(groupId: String): Flow<List<Member>> =
         DemoStore.membersByGroup[groupId]?.asStateFlow() ?: MutableStateFlow(emptyList())
 
+    override fun observeActivities(groupId: String): Flow<List<GroupActivity>> =
+        DemoStore.groupActivitiesByGroup[groupId]?.asStateFlow() ?: MutableStateFlow(emptyList())
+
     override suspend fun createGroup(
         name: String,
         ownerUserId: String,
@@ -261,12 +291,23 @@ class InMemoryGroupRepository : GroupRepository {
                     displayName = ownerProfile?.displayName ?: "Owner",
                     email = ownerProfile?.email ?: "$ownerUserId@example.com",
                     identifier = ownerProfile?.identifier.orEmpty(),
+                    upiId = ownerProfile?.upiId.orEmpty(),
                     joinedAtEpochMs = now,
                     role = Role.OWNER,
                 ),
             ),
         )
         DemoStore.expensesByGroup[group.groupId] = MutableStateFlow(emptyList())
+        DemoStore.groupActivitiesByGroup[group.groupId] = MutableStateFlow(emptyList())
+        DemoStore.settlementActivitiesByGroup[group.groupId] = MutableStateFlow(emptyList())
+        appendDemoGroupActivity(
+            groupId = group.groupId,
+            type = GroupActivityType.GROUP_CREATED,
+            actorUserId = ownerUserId,
+            title = "${ownerMemberDisplayName(ownerProfile)} created ${group.name}",
+            detail = group.description.ifBlank { "Invite ready for new members." },
+            createdAtEpochMs = now,
+        )
         return Result.success(group)
     }
 
@@ -350,7 +391,15 @@ class InMemoryGroupRepository : GroupRepository {
                     email = email,
                     identifier = profile?.identifier.orEmpty(),
                     photoUrl = profile?.photoUrl,
+                    upiId = profile?.upiId.orEmpty(),
                     joinedAtEpochMs = System.currentTimeMillis(),
+                )
+                appendDemoGroupActivity(
+                    groupId = group.groupId,
+                    type = GroupActivityType.MEMBER_JOINED,
+                    actorUserId = userId,
+                    title = "$displayName joined ${group.name}",
+                    detail = "Joined via invite code.",
                 )
             }
             return Result.success(group)
@@ -371,6 +420,7 @@ class InMemoryGroupRepository : GroupRepository {
                 .orEmpty()
                 .ifBlank { existingActualMember?.identifier.orEmpty() },
             photoUrl = profile?.photoUrl ?: existingActualMember?.photoUrl,
+            upiId = profile?.upiId?.trim().orEmpty().ifBlank { existingActualMember?.upiId.orEmpty() },
             joinedAtEpochMs = minOf(
                 existingActualMember?.joinedAtEpochMs ?: Long.MAX_VALUE,
                 claimedMember.joinedAtEpochMs,
@@ -413,6 +463,15 @@ class InMemoryGroupRepository : GroupRepository {
                 )
             }
         }
+        DemoStore.settlementActivitiesByGroup[group.groupId]?.let { activitiesFlow ->
+            activitiesFlow.value = activitiesFlow.value.map { activity ->
+                activity.mergeMemberIntoUser(
+                    fromUserId = claimMemberUserId,
+                    toUserId = userId,
+                    mergedDisplayName = mergedMember.displayName,
+                )
+            }
+        }
 
         if (group.ownerUserId == claimMemberUserId) {
             DemoStore.groups.value = DemoStore.groups.value.map { existingGroup ->
@@ -423,6 +482,14 @@ class InMemoryGroupRepository : GroupRepository {
                 }
             }
         }
+
+        appendDemoGroupActivity(
+            groupId = group.groupId,
+            type = GroupActivityType.MEMBER_JOINED,
+            actorUserId = userId,
+            title = "${mergedMember.displayName.ifBlank { "A member" }} joined ${group.name}",
+            detail = "Claimed an existing placeholder member.",
+        )
 
         return Result.success(
             DemoStore.groups.value.firstOrNull { it.groupId == group.groupId } ?: group,
@@ -499,6 +566,14 @@ class InMemoryGroupRepository : GroupRepository {
             active = true,
         )
         membersFlow.value = membersFlow.value + member
+        appendDemoGroupActivity(
+            groupId = groupId,
+            type = GroupActivityType.MEMBER_ADDED,
+            actorUserId = actorUserId,
+            title = "${demoDisplayNameForGroup(groupId, actorUserId)} added $normalizedName",
+            detail = "Member added manually.",
+            createdAtEpochMs = now,
+        )
         return Result.success(member)
     }
 
@@ -617,6 +692,18 @@ class InMemoryGroupRepository : GroupRepository {
         if (memberUserId == group.ownerUserId) {
             return Result.failure(IllegalArgumentException("Main owner cannot be removed"))
         }
+        val memberName = DemoStore.membersByGroup[groupId]
+            ?.value
+            ?.firstOrNull { it.userId == memberUserId }
+            ?.displayName
+            .orEmpty()
+        appendDemoGroupActivity(
+            groupId = groupId,
+            type = GroupActivityType.MEMBER_REMOVED,
+            actorUserId = actorUserId,
+            title = "${demoDisplayNameForGroup(groupId, actorUserId)} removed ${memberName.ifBlank { "a member" }}",
+            detail = "Removed from ${group.name}.",
+        )
         return leaveGroup(
             groupId = groupId,
             userId = memberUserId,
@@ -634,6 +721,8 @@ class InMemoryGroupRepository : GroupRepository {
         DemoStore.groups.value = DemoStore.groups.value.filterNot { it.groupId == groupId }
         DemoStore.membersByGroup.remove(groupId)
         DemoStore.expensesByGroup.remove(groupId)
+        DemoStore.groupActivitiesByGroup.remove(groupId)
+        DemoStore.settlementActivitiesByGroup.remove(groupId)
         return Result.success(Unit)
     }
 }
@@ -643,7 +732,10 @@ class InMemoryExpenseRepository : ExpenseRepository {
         DemoStore.expensesByGroup[groupId]?.asStateFlow() ?: MutableStateFlow(emptyList())
 
     override fun observeBalances(groupId: String): Flow<List<Balance>> {
-        return observeExpenses(groupId).map { expenses ->
+        return combine(
+            observeExpenses(groupId),
+            DemoStore.settlementActivitiesByGroup[groupId]?.asStateFlow() ?: MutableStateFlow(emptyList()),
+        ) { expenses, activities ->
             val balances = mutableMapOf<String, Long>()
             expenses.forEach { expense ->
                 val split = SplitCalculator.allocate(
@@ -664,6 +756,10 @@ class InMemoryExpenseRepository : ExpenseRepository {
                 }
                 balances[expense.paidByUserId] = (balances[expense.paidByUserId] ?: 0L) + expense.amountPaise
             }
+            successfulSettlementTransactions(activities).forEach { activity ->
+                balances[activity.payerUserId] = (balances[activity.payerUserId] ?: 0L) + activity.amountPaise
+                balances[activity.receiverUserId] = (balances[activity.receiverUserId] ?: 0L) - activity.amountPaise
+            }
             balances.map { (userId, value) -> Balance(userId = userId, netPaise = value) }
         }
     }
@@ -681,6 +777,14 @@ class InMemoryExpenseRepository : ExpenseRepository {
         }
 
         flow.value = flow.value + finalizedExpense
+        appendDemoGroupActivity(
+            groupId = expense.groupId,
+            type = GroupActivityType.EXPENSE_ADDED,
+            actorUserId = expense.createdByUserId,
+            title = "${demoDisplayNameForGroup(expense.groupId, expense.createdByUserId)} added ${expense.title}",
+            detail = "${expense.amountPaise} paise • ${expense.category.displayLabel}",
+            createdAtEpochMs = finalizedExpense.updatedAtEpochMs,
+        )
         return Result.success(Unit)
     }
 
@@ -703,6 +807,15 @@ class InMemoryExpenseRepository : ExpenseRepository {
         flow.value = flow.value.map {
             if (it.expenseId == expense.expenseId) expense.copy(updatedAtEpochMs = System.currentTimeMillis()) else it
         }
+        val updatedExpense = flow.value.firstOrNull { it.expenseId == expense.expenseId } ?: expense
+        appendDemoGroupActivity(
+            groupId = expense.groupId,
+            type = GroupActivityType.EXPENSE_UPDATED,
+            actorUserId = actorUserId,
+            title = "${demoDisplayNameForGroup(expense.groupId, actorUserId)} updated ${updatedExpense.title}",
+            detail = "${updatedExpense.amountPaise} paise • ${updatedExpense.category.displayLabel}",
+            createdAtEpochMs = updatedExpense.updatedAtEpochMs,
+        )
         return Result.success(Unit)
     }
 
@@ -722,7 +835,19 @@ class InMemoryExpenseRepository : ExpenseRepository {
         if (current.createdByUserId != actorUserId && !isOwner) {
             return Result.failure(IllegalAccessException("Only an owner or creator can delete"))
         }
+        if (DemoStore.settlementActivitiesByGroup[groupId]?.value?.isNotEmpty() == true) {
+            return Result.failure(
+                IllegalStateException("Expenses cannot be deleted after payment activity starts. Settle this group first."),
+            )
+        }
         flow.value = flow.value.filterNot { it.expenseId == expenseId }
+        appendDemoGroupActivity(
+            groupId = groupId,
+            type = GroupActivityType.EXPENSE_DELETED,
+            actorUserId = actorUserId,
+            title = "${demoDisplayNameForGroup(groupId, actorUserId)} deleted ${current.title}",
+            detail = "${current.amountPaise} paise • ${current.category.displayLabel}",
+        )
         return Result.success(Unit)
     }
 }
@@ -854,7 +979,38 @@ class InMemoryPersonalExpenseRepository : PersonalExpenseRepository {
 }
 
 class InMemorySettlementRepository : SettlementRepository {
-    override suspend fun generateSettlementPdf(groupId: String, actorUserId: String): Result<String> {
+    override fun observeSettlementActivities(groupId: String): Flow<List<SettlementUpiTransaction>> {
+        return DemoStore.settlementActivitiesByGroup[groupId]?.asStateFlow() ?: MutableStateFlow(emptyList())
+    }
+
+    override suspend fun recordSettlementActivity(
+        groupId: String,
+        activity: SettlementUpiTransaction,
+    ): Result<Unit> {
+        if (DemoStore.groups.value.none { it.groupId == groupId }) {
+            return Result.failure(IllegalArgumentException("Group not found"))
+        }
+        val flow = DemoStore.settlementActivitiesByGroup.getOrPut(groupId) { MutableStateFlow(emptyList()) }
+        val activityId = activity.activityId.ifBlank { "activity_${System.currentTimeMillis()}" }
+        if (flow.value.any {
+                it.transferKey == activity.transferKey &&
+                    it.blocksFurtherUpiInitiation &&
+                    it.activityId != activityId
+            }
+        ) {
+            return Result.failure(
+                IllegalStateException("A successful UPI payment is already recorded for this transfer."),
+            )
+        }
+        flow.value = (flow.value.filterNot { it.activityId == activityId } + activity.copy(activityId = activityId))
+            .sortedByDescending { it.handledAtEpochMs }
+        return Result.success(Unit)
+    }
+
+    override suspend fun generateSettlementPdf(
+        groupId: String,
+        actorUserId: String,
+    ): Result<String> {
         val hasGroup = DemoStore.groups.value.any { it.groupId == groupId }
         if (!hasGroup) {
             return Result.failure(IllegalArgumentException("Group not found"))
@@ -893,7 +1049,16 @@ class InMemorySettlementRepository : SettlementRepository {
         if (flow.value.isEmpty()) {
             return Result.failure(IllegalStateException("No expenses to settle."))
         }
+        val expenseCount = flow.value.size
         flow.value = emptyList()
+        DemoStore.settlementActivitiesByGroup[groupId]?.value = emptyList()
+        appendDemoGroupActivity(
+            groupId = groupId,
+            type = GroupActivityType.SETTLEMENT_COMPLETED,
+            actorUserId = actorUserId,
+            title = "${demoDisplayNameForGroup(groupId, actorUserId)} settled ${DemoStore.groups.value.firstOrNull { it.groupId == groupId }?.name.orEmpty()}",
+            detail = "$expenseCount expense(s) cleared after final settlement.",
+        )
         return Result.success(Unit)
     }
 }
@@ -903,6 +1068,50 @@ private fun canManageGroup(groupId: String, actorUserId: String): Boolean {
         ?.value
         ?.firstOrNull { it.userId == actorUserId && it.active }
         ?.role == Role.OWNER
+}
+
+private fun ownerMemberDisplayName(profile: UserProfile?): String {
+    return profile?.displayName?.trim().orEmpty().ifBlank { "Owner" }
+}
+
+private fun demoDisplayNameForGroup(groupId: String, userId: String): String {
+    return DemoStore.membersByGroup[groupId]
+        ?.value
+        ?.firstOrNull { it.userId == userId && it.active }
+        ?.displayName
+        ?.trim()
+        .orEmpty()
+        .ifBlank {
+            DemoStore.user.value
+                ?.takeIf { it.userId == userId }
+                ?.displayName
+                ?.trim()
+                .orEmpty()
+                .ifBlank { "Member" }
+        }
+}
+
+private fun appendDemoGroupActivity(
+    groupId: String,
+    type: GroupActivityType,
+    actorUserId: String,
+    title: String,
+    detail: String = "",
+    createdAtEpochMs: Long = System.currentTimeMillis(),
+) {
+    if (groupId.isBlank() || title.isBlank()) return
+    val flow = DemoStore.groupActivitiesByGroup.getOrPut(groupId) { MutableStateFlow(emptyList()) }
+    val activity = GroupActivity(
+        activityId = "activity_${createdAtEpochMs}_${flow.value.size}",
+        groupId = groupId,
+        type = type,
+        actorUserId = actorUserId,
+        actorName = demoDisplayNameForGroup(groupId, actorUserId),
+        title = title,
+        detail = detail,
+        createdAtEpochMs = createdAtEpochMs,
+    )
+    flow.value = (flow.value + activity).sortedByDescending { it.createdAtEpochMs }
 }
 
 private fun Group.renewInvite(now: Long = System.currentTimeMillis()): Group {

@@ -20,6 +20,7 @@ import com.buddingintents.letsgodutch.core.model.UnsettledGroupsSummary
 import com.buddingintents.letsgodutch.core.model.summarizeGroupNetBalances
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import java.time.LocalTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -123,16 +124,17 @@ class DailySettlementReminderReceiver : BroadcastReceiver() {
         } else {
             "${summary.unsettledGroupCount} groups need settlement"
         }
+        val greeting = if (LocalTime.now().hour < 12) "Good morning." else "Hello."
         val body = when {
             summary.hasMixedBalances ->
-                "Balances net to ${summary.settlement.amountDisplay} overall, but some groups still need settlement."
+                "$greeting Some groups owe you and some need payment. Open Let's Go Dutch to review today's settlements."
 
             summary.settlement.state == SettlementState.RECEIVABLE ||
                 summary.settlement.state == SettlementState.PAYABLE ->
-                "${summary.settlement.label} ${summary.settlement.amountDisplay} to your friends"
+                "$greeting ${summary.settlement.label} ${summary.settlement.amountDisplay}."
 
             else ->
-                "Some groups still need settlement."
+                "$greeting Some groups still need settlement."
         }
 
         val launchIntent = Intent(context, MainActivity::class.java).apply {

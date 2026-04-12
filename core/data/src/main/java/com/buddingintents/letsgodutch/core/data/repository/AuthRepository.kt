@@ -8,6 +8,7 @@ interface AuthRepository {
     fun observeRecentAnonymousDisplayNames(): Flow<List<String>>
     suspend fun signInWithGoogleIdToken(idToken: String): Result<UserProfile>
     suspend fun signInAnonymously(displayName: String): Result<UserProfile>
+    suspend fun updateProfile(displayName: String, upiId: String): Result<UserProfile>
     suspend fun updateDisplayName(displayName: String): Result<UserProfile>
     suspend fun signOut()
 }

@@ -56,14 +56,14 @@ val gitCommitCount: Int? = runCatching {
     }.standardOutput.asText.get().trim().toInt()
 }.getOrNull()
 
-val minimumPlayVersionCode = 19
+val minimumPlayVersionCode = 20
 val computedVersionCode = System.getenv("VERSION_CODE")?.toIntOrNull()
     ?: gitCommitCount
     ?: minimumPlayVersionCode
 val resolvedVersionCode: Int = maxOf(computedVersionCode, minimumPlayVersionCode)
 
 val resolvedVersionName: String = System.getenv("VERSION_NAME")
-    ?: "1.2.$resolvedVersionCode"
+    ?: "2.0.$resolvedVersionCode"
 
 android {
     namespace = "com.buddingintents.letsgodutch"

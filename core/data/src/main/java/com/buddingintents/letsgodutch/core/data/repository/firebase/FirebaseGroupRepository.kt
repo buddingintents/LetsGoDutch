@@ -7,6 +7,8 @@ import com.buddingintents.letsgodutch.core.data.repository.mergeMemberIntoUser
 import com.buddingintents.letsgodutch.core.data.repository.mergeUserIdReferences
 import com.buddingintents.letsgodutch.core.model.ExitLiabilityChoice
 import com.buddingintents.letsgodutch.core.model.Group
+import com.buddingintents.letsgodutch.core.model.GroupActivity
+import com.buddingintents.letsgodutch.core.model.GroupActivityType
 import com.buddingintents.letsgodutch.core.model.JoinGroupPreview
 import com.buddingintents.letsgodutch.core.model.Member
 import com.buddingintents.letsgodutch.core.model.Role
@@ -32,6 +34,7 @@ class FirebaseGroupRepository(
 ) : GroupRepository {
 
     private val root = database.reference
+    private val activityRepository = FirebaseActivityRepository(database)
 
     override fun observeGroupsForUser(userId: String): Flow<List<Group>> = callbackFlow {
         if (userId.isBlank()) {
@@ -95,7 +98,8 @@ class FirebaseGroupRepository(
             override fun onDataChange(snapshot: DataSnapshot) {
                 scope.launch {
                     runCatching {
-                        val members = snapshot.children.mapNotNull { it.toMemberOrNull() }
+                        recomputeAndPersistGroupBalances(root = root, groupId = groupId)
+                        val members = membersRef.get().await().children.mapNotNull { it.toMemberOrNull() }
                             .filter { it.active }
                             .map { member -> enrichMemberFromProfileIfNeeded(member) }
                             .sortedBy { it.joinedAtEpochMs }
@@ -159,6 +163,20 @@ class FirebaseGroupRepository(
                 runCatching { root.child("groups").child(groupId).removeValue().await() }
                 throw error
             }
+            runCatching {
+                appendGroupActivity(
+                    root = root,
+                    groupId = groupId,
+                    type = GroupActivityType.GROUP_CREATED,
+                    actorUserId = ownerUserId,
+                    actorName = ownerMember.displayName,
+                    title = "${ownerMember.displayName.ifBlank { "Owner" }} created ${group.name}",
+                    detail = group.description.ifBlank { "Invite ready for new members." },
+                    createdAtEpochMs = now,
+                )
+            }.onFailure { throwable ->
+                Log.w("FirebaseGroupRepo", "createGroup failed to append activity.", throwable)
+            }
             group
         }
     }
@@ -220,6 +238,19 @@ class FirebaseGroupRepository(
                         root.child("groupMembers").child(group.groupId).child(userId).setValue(member.toFirebaseMap()).await()
                         root.child("userGroups").child(userId).child(group.groupId).setValue(true).await()
                         runCatching {
+                            appendGroupActivity(
+                                root = root,
+                                groupId = group.groupId,
+                                type = GroupActivityType.MEMBER_JOINED,
+                                actorUserId = userId,
+                                actorName = member.displayName,
+                                title = "${member.displayName.ifBlank { "A member" }} joined ${group.name}",
+                                detail = "Joined via invite code.",
+                            )
+                        }.onFailure { throwable ->
+                            Log.w("FirebaseGroupRepo", "joinGroupWithInvite failed to append join activity.", throwable)
+                        }
+                        runCatching {
                             enqueueMembershipNotification(
                                 group = group,
                                 actorUserId = userId,
@@ -254,6 +285,19 @@ class FirebaseGroupRepository(
                 ).takeUnless { it == Long.MAX_VALUE } ?: System.currentTimeMillis(),
                 role = if (mergedGroup.ownerUserId == userId) Role.OWNER else Role.MEMBER,
             )
+            runCatching {
+                appendGroupActivity(
+                    root = root,
+                    groupId = mergedGroup.groupId,
+                    type = GroupActivityType.MEMBER_JOINED,
+                    actorUserId = userId,
+                    actorName = mergedMember.displayName,
+                    title = "${mergedMember.displayName.ifBlank { "A member" }} joined ${mergedGroup.name}",
+                    detail = "Claimed an existing placeholder member.",
+                )
+            }.onFailure { throwable ->
+                Log.w("FirebaseGroupRepo", "joinGroupWithInvite failed to append claimed-member activity.", throwable)
+            }
             runCatching {
                 enqueueMembershipNotification(
                     group = mergedGroup,
@@ -353,6 +397,22 @@ class FirebaseGroupRepository(
                 active = true,
             )
             membersRef.child(memberUserId).setValue(member.toFirebaseMap()).await()
+
+            runCatching {
+                val actorName = resolveActivityDisplayName(root, groupId, actorUserId)
+                appendGroupActivity(
+                    root = root,
+                    groupId = groupId,
+                    type = GroupActivityType.MEMBER_ADDED,
+                    actorUserId = actorUserId,
+                    actorName = actorName,
+                    title = "$actorName added $normalizedName",
+                    detail = "Member added manually.",
+                    createdAtEpochMs = now,
+                )
+            }.onFailure { throwable ->
+                Log.w("FirebaseGroupRepo", "addManualMember failed to append activity.", throwable)
+            }
 
             runCatching {
                 enqueueMembershipNotification(
@@ -485,12 +545,31 @@ class FirebaseGroupRepository(
                 message = "Only an owner can remove members.",
             )
             check(memberUserId != group.ownerUserId) { "Main owner cannot be removed from group." }
+            val memberName = loadActiveMembers(groupId)
+                .firstOrNull { it.userId == memberUserId }
+                ?.displayName
+                .orEmpty()
 
             leaveGroup(
                 groupId = groupId,
                 userId = memberUserId,
                 liabilityChoice = liabilityChoice,
             ).getOrThrow()
+
+            runCatching {
+                val actorName = resolveActivityDisplayName(root, groupId, actorUserId)
+                appendGroupActivity(
+                    root = root,
+                    groupId = groupId,
+                    type = GroupActivityType.MEMBER_REMOVED,
+                    actorUserId = actorUserId,
+                    actorName = actorName,
+                    title = "$actorName removed ${memberName.ifBlank { "a member" }}",
+                    detail = "Removed from ${group.name}.",
+                )
+            }.onFailure { throwable ->
+                Log.w("FirebaseGroupRepo", "removeMember failed to append activity.", throwable)
+            }
 
             runCatching {
                 enqueueMembershipNotification(
@@ -600,6 +679,8 @@ class FirebaseGroupRepository(
                 "groupMembers/$groupId" to null,
                 "expenses/$groupId" to null,
                 "balances/$groupId" to null,
+                "activities/$groupId" to null,
+                "settlementActivities/$groupId" to null,
                 "settlementDispatch/$groupId" to null,
             )
             memberIds.forEach { memberId ->
@@ -673,6 +754,7 @@ class FirebaseGroupRepository(
         val authPhoto = authUser?.photoUrl?.toString().orEmpty().trim()
         val profilePhoto = profileSnapshot?.childString("photoUrl").orEmpty().trim()
         val photoUrl = firstNotBlank(authPhoto, profilePhoto).takeIf { it.isNotBlank() }
+        val upiId = profileSnapshot?.childString("upiId").orEmpty().trim()
         val identifier = firstNotBlank(
             profileSnapshot?.childString("identifier").orEmpty().trim(),
             profileSnapshot?.childString("deviceId").orEmpty().trim(),
@@ -687,6 +769,7 @@ class FirebaseGroupRepository(
             )
             identifier.takeIf { it.isNotBlank() }?.let { profileMap["identifier"] = it }
             photoUrl?.let { profileMap["photoUrl"] = it }
+            profileMap["upiId"] = upiId
             runCatching {
                 root.child("users").child(userId).child("profile").updateChildren(profileMap).await()
             }
@@ -698,6 +781,7 @@ class FirebaseGroupRepository(
             email = email,
             identifier = identifier,
             photoUrl = photoUrl,
+            upiId = upiId,
             joinedAtEpochMs = joinedAt,
             role = role,
             active = true,
@@ -710,7 +794,8 @@ class FirebaseGroupRepository(
         val hasConcreteEmail = member.email.isNotBlank() &&
             !member.email.endsWith("@example.com", ignoreCase = true)
         val hasPhoto = !member.photoUrl.isNullOrBlank()
-        if (hasConcreteName && hasConcreteEmail && hasPhoto) return member
+        val hasUpiId = member.upiId.isNotBlank()
+        if (hasConcreteName && hasConcreteEmail && hasPhoto && hasUpiId) return member
 
         val profileSnapshot = runCatching {
             root.child("users").child(member.userId).child("profile").get().await()
@@ -724,6 +809,7 @@ class FirebaseGroupRepository(
             member.userId,
         ).ifBlank { "Member" }
         val profilePhoto = profileSnapshot.childString("photoUrl").ifBlank { member.photoUrl.orEmpty() }
+        val profileUpiId = profileSnapshot.childString("upiId").trim()
         val profileIdentifier = firstNotBlank(
             profileSnapshot.childString("identifier"),
             profileSnapshot.childString("deviceId"),
@@ -735,6 +821,7 @@ class FirebaseGroupRepository(
             email = profileEmail.ifBlank { member.email },
             identifier = profileIdentifier,
             photoUrl = profilePhoto.ifBlank { member.photoUrl.orEmpty() }.ifBlank { null },
+            upiId = profileUpiId.ifBlank { member.upiId },
         )
     }
 
@@ -765,6 +852,7 @@ class FirebaseGroupRepository(
     }
 
     private suspend fun loadVisibleGroupForUser(groupId: String, userId: String): Group? {
+        recomputeAndPersistGroupBalances(root = root, groupId = groupId)
         val group = root.child("groups").child(groupId).get().await().toGroupOrNull() ?: run {
             pruneStaleUserGroupReference(
                 userId = userId,
@@ -839,6 +927,10 @@ class FirebaseGroupRepository(
                 throwable,
             )
         }
+    }
+
+    override fun observeActivities(groupId: String): Flow<List<GroupActivity>> {
+        return activityRepository.observeGroupActivities(groupId)
     }
 
     private suspend fun renewInviteInternal(group: Group): Group {
@@ -963,7 +1055,18 @@ class FirebaseGroupRepository(
             }
         }
 
+        updates.putAll(
+            collectSettlementActivityMergeUpdates(
+                root = root,
+                groupId = group.groupId,
+                fromUserId = claimMemberUserId,
+                toUserId = actualUserId,
+                mergedDisplayName = mergedMember.displayName,
+            ),
+        )
+
         root.updateChildren(updates).await()
+        recomputeAndPersistGroupBalances(root = root, groupId = group.groupId)
         return if (group.ownerUserId == claimMemberUserId) {
             group.copy(ownerUserId = actualUserId)
         } else {

@@ -53,10 +53,12 @@ import com.buddingintents.letsgodutch.core.designsystem.component.AvatarBadge
 import com.buddingintents.letsgodutch.core.designsystem.component.GradientButton
 import com.buddingintents.letsgodutch.core.designsystem.component.SectionLabel
 import com.buddingintents.letsgodutch.core.designsystem.theme.Charcoal
+import com.buddingintents.letsgodutch.core.designsystem.theme.CoralSoft
 import com.buddingintents.letsgodutch.core.designsystem.theme.MintGlow
 import com.buddingintents.letsgodutch.core.designsystem.theme.MintGreen
 import com.buddingintents.letsgodutch.core.designsystem.theme.MintTeal
 import com.buddingintents.letsgodutch.core.designsystem.theme.NightSoft
+import com.buddingintents.letsgodutch.core.designsystem.theme.TextOnDark
 import com.buddingintents.letsgodutch.core.model.Group
 import com.buddingintents.letsgodutch.core.model.SettlementState
 import com.buddingintents.letsgodutch.core.model.SettlementSummary
@@ -66,6 +68,7 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
 import java.time.Instant
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -148,15 +151,19 @@ private fun GroupsHeroCard(
     var showInfoDialog by rememberSaveable { mutableStateOf(false) }
     val welcomeName = displayName.toHeroDisplayName()
     val settlement = groupsSummary.settlement
+    val heroContentColor = TextOnDark
+    val heroMutedContentColor = heroContentColor.copy(alpha = 0.76f)
+    val heroSurfaceColor = heroContentColor.copy(alpha = 0.10f)
+    val heroBorderColor = heroContentColor.copy(alpha = 0.14f)
     val netValueColor = when (settlement.state) {
         SettlementState.RECEIVABLE -> MintGreen
-        SettlementState.PAYABLE -> Color(0xFFFFB4AB)
-        SettlementState.SETTLED -> Color.White
+        SettlementState.PAYABLE -> CoralSoft
+        SettlementState.SETTLED -> heroContentColor
     }
     val netLabelColor = when (settlement.state) {
         SettlementState.RECEIVABLE -> MintGreen.copy(alpha = 0.82f)
-        SettlementState.PAYABLE -> Color(0xFFFFB4AB).copy(alpha = 0.9f)
-        SettlementState.SETTLED -> Color.White.copy(alpha = 0.72f)
+        SettlementState.PAYABLE -> CoralSoft.copy(alpha = 0.90f)
+        SettlementState.SETTLED -> heroContentColor.copy(alpha = 0.72f)
     }
     val supportingText = when {
         totalGroups == 0 -> "Create a group or join one with an invite code to get started."
@@ -165,7 +172,6 @@ private fun GroupsHeroCard(
             "${groupsSummary.unsettledGroupCount} groups need settlement across both sides."
         else -> "${groupsSummary.unsettledGroupCount} groups need settlement right now."
     }
-
     Card(
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
@@ -191,22 +197,22 @@ private fun GroupsHeroCard(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(
-                        text = "Group Summary",
+                        text = "Crew hub",
                         style = MaterialTheme.typography.labelMedium,
                         color = MintGreen,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = "Hi $welcomeName",
+                        text = "${currentGreetingMessage()}, $welcomeName",
                         style = MaterialTheme.typography.headlineSmall,
-                        color = Color.White,
+                        color = heroContentColor,
                     )
                 }
                 Surface(
                     modifier = Modifier.clickable { showInfoDialog = true },
                     shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)),
+                    color = heroSurfaceColor,
+                    border = BorderStroke(1.dp, heroBorderColor),
                 ) {
                     Box(
                         modifier = Modifier.size(28.dp),
@@ -215,7 +221,7 @@ private fun GroupsHeroCard(
                         Text(
                             text = "i",
                             style = MaterialTheme.typography.labelLarge,
-                            color = Color.White,
+                            color = heroContentColor,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
@@ -225,7 +231,7 @@ private fun GroupsHeroCard(
             Text(
                 text = supportingText,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.76f),
+                color = heroMutedContentColor,
             )
 
             Row(
@@ -258,11 +264,11 @@ private fun GroupsHeroCard(
                 OutlinedButton(
                     onClick = onJoinGroupClick,
                     modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.24f)),
+                    border = BorderStroke(1.dp, heroContentColor.copy(alpha = 0.24f)),
                 ) {
                     Text(
                         text = "Join Group",
-                        color = Color.White,
+                        color = heroContentColor,
                     )
                 }
             }
@@ -292,15 +298,15 @@ private fun GroupsHeroCard(
 private fun HeroMetricCard(
     label: String,
     value: String,
-    valueColor: Color = Color.White,
-    labelColor: Color = Color.White.copy(alpha = 0.72f),
+    valueColor: Color = TextOnDark,
+    labelColor: Color = TextOnDark.copy(alpha = 0.72f),
     modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
-        color = Color.White.copy(alpha = 0.10f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+        color = TextOnDark.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, TextOnDark.copy(alpha = 0.12f)),
     ) {
         Column(
             modifier = Modifier
@@ -335,8 +341,8 @@ private fun HeroAppBadge(
     Surface(
         modifier = Modifier.size(46.dp),
         shape = RoundedCornerShape(16.dp),
-        color = Color.White.copy(alpha = 0.08f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+        color = TextOnDark.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, TextOnDark.copy(alpha = 0.12f)),
     ) {
         Box(
             modifier = Modifier
@@ -356,7 +362,7 @@ private fun HeroAppBadge(
                 Text(
                     text = "LGD",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White,
+                    color = TextOnDark,
                     fontWeight = FontWeight.Bold,
                 )
             }
@@ -753,6 +759,14 @@ private fun String.toHeroDisplayName(): String {
         } else {
             first.toString()
         }
+    }
+}
+
+private fun currentGreetingMessage(now: LocalTime = LocalTime.now()): String {
+    return when (now.hour) {
+        in 0..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        else -> "Good evening"
     }
 }
 

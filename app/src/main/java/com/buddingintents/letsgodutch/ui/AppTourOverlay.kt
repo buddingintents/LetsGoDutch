@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
@@ -14,13 +15,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.List
@@ -28,7 +36,6 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -57,11 +64,23 @@ import com.buddingintents.letsgodutch.core.designsystem.theme.MintGreen
 import com.buddingintents.letsgodutch.core.designsystem.theme.MintTeal
 import com.buddingintents.letsgodutch.core.designsystem.theme.Night
 import com.buddingintents.letsgodutch.core.designsystem.theme.NightSoft
+import com.buddingintents.letsgodutch.core.designsystem.theme.TextOnDark
 
 @Composable
 fun AppTourOverlay(
     onDismiss: () -> Unit,
 ) {
+    val contentColor = TextOnDark
+    val mutedContentColor = contentColor.copy(alpha = 0.72f)
+    val supportingContentColor = contentColor.copy(alpha = 0.62f)
+    val subtleSurfaceColor = contentColor.copy(alpha = 0.06f)
+    val subtleBorderColor = contentColor.copy(alpha = 0.10f)
+    val scrimColor = Night.copy(alpha = 0.70f)
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+    val maxCardHeight = configuration.screenHeightDp.dp * if (isLandscape) 0.94f else 0.88f
+    val maxCardWidth = if (isLandscape) 760.dp else 620.dp
+    val overlayScrollState = rememberScrollState()
     val steps = remember {
         listOf(
             TourStep(
@@ -123,11 +142,6 @@ fun AppTourOverlay(
     }
     var stepIndex by rememberSaveable { mutableIntStateOf(0) }
     val isLastStep = stepIndex == steps.lastIndex
-    val progress by animateFloatAsState(
-        targetValue = (stepIndex + 1) / steps.size.toFloat(),
-        animationSpec = spring(),
-        label = "tour_progress",
-    )
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -140,12 +154,16 @@ fun AppTourOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xB3121C28))
+                .background(scrimColor)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(horizontal = 20.dp, vertical = 28.dp),
             contentAlignment = Alignment.Center,
         ) {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = maxCardWidth)
+                    .heightIn(max = maxCardHeight),
                 shape = RoundedCornerShape(28.dp),
                 color = Color.Transparent,
                 border = BorderStroke(1.dp, MintGlow),
@@ -158,6 +176,7 @@ fun AppTourOverlay(
                                 listOf(Night, NightSoft, Charcoal),
                             ),
                         )
+                        .verticalScroll(overlayScrollState)
                         .padding(horizontal = 20.dp, vertical = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
@@ -174,18 +193,18 @@ fun AppTourOverlay(
                             Text(
                                 text = "Know your app",
                                 style = MaterialTheme.typography.headlineSmall,
-                                color = Color.White,
+                                color = contentColor,
                             )
                             Text(
                                 text = "A quick walkthrough of the screens you will use most to split, track, and settle cleanly.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White.copy(alpha = 0.72f),
+                                color = mutedContentColor,
                             )
                         }
                         Surface(
                             shape = MaterialTheme.shapes.medium,
-                            color = Color.White.copy(alpha = 0.10f),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                            color = subtleSurfaceColor,
+                            border = BorderStroke(1.dp, subtleBorderColor),
                         ) {
                             Column(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -194,27 +213,24 @@ fun AppTourOverlay(
                                 Text(
                                     text = "${stepIndex + 1}/${steps.size}",
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = Color.White,
+                                    color = contentColor,
                                     fontWeight = FontWeight.Bold,
                                 )
                                 Text(
                                     text = "steps",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color.White.copy(alpha = 0.62f),
+                                    color = supportingContentColor,
                                 )
                             }
                         }
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        LinearProgressIndicator(
-                            progress = { progress },
+                        TourProgressPills(
+                            totalSteps = steps.size,
+                            currentStepIndex = stepIndex,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(100.dp)),
-                            color = MintGreen,
-                            trackColor = Color.White.copy(alpha = 0.14f),
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -223,7 +239,7 @@ fun AppTourOverlay(
                             Text(
                                 text = "Current focus",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = Color.White.copy(alpha = 0.62f),
+                                color = supportingContentColor,
                             )
                             Text(
                                 text = steps[stepIndex].label,
@@ -235,8 +251,8 @@ fun AppTourOverlay(
 
                     Surface(
                         shape = RoundedCornerShape(24.dp),
-                        color = Color.White.copy(alpha = 0.06f),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                        color = subtleSurfaceColor,
+                        border = BorderStroke(1.dp, subtleBorderColor),
                     ) {
                         AnimatedContent(
                             targetState = stepIndex,
@@ -281,7 +297,7 @@ fun AppTourOverlay(
                                                 imageVector = step.icon,
                                                 contentDescription = step.label,
                                                 modifier = Modifier.size(20.dp),
-                                                tint = Color.White,
+                                                tint = contentColor,
                                             )
                                         }
                                     }
@@ -290,7 +306,7 @@ fun AppTourOverlay(
                                         Text(
                                             text = step.title,
                                             style = MaterialTheme.typography.headlineSmall,
-                                            color = Color.White,
+                                            color = contentColor,
                                         )
                                     }
                                 }
@@ -298,7 +314,7 @@ fun AppTourOverlay(
                                 Text(
                                     text = step.description,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White.copy(alpha = 0.74f),
+                                    color = contentColor.copy(alpha = 0.74f),
                                 )
 
                                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -322,7 +338,7 @@ fun AppTourOverlay(
                         ) {
                             Text(
                                 text = if (stepIndex == 0) "Skip" else "Back",
-                                color = Color.White.copy(alpha = 0.64f),
+                                color = contentColor.copy(alpha = 0.64f),
                             )
                         }
                         GradientButton(
@@ -337,6 +353,75 @@ fun AppTourOverlay(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TourProgressPills(
+    totalSteps: Int,
+    currentStepIndex: Int,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(totalSteps) { index ->
+            val isCompleted = index < currentStepIndex
+            val isCurrent = index == currentStepIndex
+            val pillWidth by animateDpAsState(
+                targetValue = if (isCurrent) 72.dp else 24.dp,
+                animationSpec = spring(),
+                label = "tour_pill_width_$index",
+            )
+            val emphasis by animateFloatAsState(
+                targetValue = when {
+                    isCurrent -> 1f
+                    isCompleted -> 0.78f
+                    else -> 0.22f
+                },
+                animationSpec = spring(),
+                label = "tour_pill_emphasis_$index",
+            )
+            val borderAlpha = when {
+                isCurrent -> 0.95f
+                isCompleted -> 0.55f
+                else -> 0.18f
+            }
+            Surface(
+                modifier = Modifier
+                    .height(12.dp)
+                    .width(pillWidth),
+                shape = RoundedCornerShape(100.dp),
+                color = Color.Transparent,
+                border = BorderStroke(1.dp, MintGlow.copy(alpha = borderAlpha)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = when {
+                                isCurrent -> Brush.horizontalGradient(
+                                    listOf(MintGreen, MintTeal),
+                                )
+                                isCompleted -> Brush.horizontalGradient(
+                                    listOf(
+                                        MintGreen.copy(alpha = emphasis),
+                                        MintTeal.copy(alpha = emphasis),
+                                    ),
+                                )
+                                else -> Brush.horizontalGradient(
+                                    listOf(
+                                        TextOnDark.copy(alpha = emphasis),
+                                        TextOnDark.copy(alpha = emphasis * 0.82f),
+                                    ),
+                                )
+                            },
+                        ),
+                )
             }
         }
     }
@@ -361,7 +446,7 @@ private fun TourHighlightRow(
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.White.copy(alpha = 0.76f),
+            color = TextOnDark.copy(alpha = 0.76f),
         )
     }
 }

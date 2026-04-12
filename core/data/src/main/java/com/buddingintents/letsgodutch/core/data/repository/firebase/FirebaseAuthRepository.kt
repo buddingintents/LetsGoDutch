@@ -9,7 +9,9 @@ import com.buddingintents.letsgodutch.core.data.repository.mergeMemberBalanceInt
 import com.buddingintents.letsgodutch.core.data.repository.mergeMemberIntoUser
 import com.buddingintents.letsgodutch.core.data.repository.mergeUserIdReferences
 import com.buddingintents.letsgodutch.core.data.repository.AuthRepository
+import com.buddingintents.letsgodutch.core.model.isValidUpiId
 import com.buddingintents.letsgodutch.core.model.Member
+import com.buddingintents.letsgodutch.core.model.normalizeUpiId
 import com.buddingintents.letsgodutch.core.model.Role
 import com.buddingintents.letsgodutch.core.model.UserProfile
 import com.google.firebase.auth.FirebaseAuth
@@ -196,10 +198,12 @@ class FirebaseAuthRepository(
         }
     }
 
-    override suspend fun updateDisplayName(displayName: String): Result<UserProfile> {
+    override suspend fun updateProfile(displayName: String, upiId: String): Result<UserProfile> {
         return runCatching {
             val normalizedName = displayName.trim()
+            val normalizedUpiId = upiId.normalizeUpiId()
             require(normalizedName.isNotBlank()) { "Display name is required." }
+            require(normalizedUpiId.isValidUpiId()) { "Enter a valid UPI ID or leave it blank." }
 
             val firebaseUser = auth.currentUser ?: error("Please sign in again.")
             runCatching {
@@ -212,6 +216,7 @@ class FirebaseAuthRepository(
             val updatedProfile = syncAndPersistProfile(
                 firebaseUser = firebaseUser,
                 preferredDisplayName = normalizedName,
+                preferredUpiId = normalizedUpiId,
                 deviceContext = context.currentDeviceContext(),
                 strictPersist = true,
             )
@@ -222,6 +227,13 @@ class FirebaseAuthRepository(
             currentUserState.value = updatedProfile
             updatedProfile
         }
+    }
+
+    override suspend fun updateDisplayName(displayName: String): Result<UserProfile> {
+        return updateProfile(
+            displayName = displayName,
+            upiId = currentUserState.value?.upiId.orEmpty(),
+        )
     }
 
     override suspend fun signOut() {
@@ -304,6 +316,10 @@ class FirebaseAuthRepository(
                     existingMember?.identifier.orEmpty(),
                 ),
                 photoUrl = profile.photoUrl ?: existingMember?.photoUrl,
+                upiId = firstNotBlank(
+                    profile.upiId,
+                    existingMember?.upiId.orEmpty(),
+                ),
                 joinedAtEpochMs = existingMember?.joinedAtEpochMs
                     ?.takeIf { it > 0L }
                     ?: memberSnapshot.childLongNullable("joinedAt")
@@ -337,6 +353,7 @@ class FirebaseAuthRepository(
         firebaseUser: FirebaseUser,
         preferredDisplayName: String = "",
         preferredEmail: String = "",
+        preferredUpiId: String = "",
         deviceContext: DeviceContext = context.currentDeviceContext(),
         strictPersist: Boolean = false,
     ): UserProfile {
@@ -350,6 +367,7 @@ class FirebaseAuthRepository(
             profileSnapshot = profileSnapshot,
             preferredDisplayName = preferredDisplayName,
             preferredEmail = preferredEmail,
+            preferredUpiId = preferredUpiId,
             deviceContext = deviceContext,
         )
         if (strictPersist) {
@@ -367,6 +385,7 @@ class FirebaseAuthRepository(
         profileSnapshot: DataSnapshot?,
         preferredDisplayName: String = "",
         preferredEmail: String = "",
+        preferredUpiId: String = "",
         deviceContext: DeviceContext,
     ): UserProfile {
         val snapshotDisplayName = profileSnapshot.childString("displayName").trim()
@@ -383,6 +402,7 @@ class FirebaseAuthRepository(
         val snapshotPrimaryAuthProvider = profileSnapshot.childString("primaryAuthProvider").trim()
         val snapshotLinkedProviders = profileSnapshot.childStringList("linkedProviders")
         val snapshotUpgradedFromAnonymousAtEpochMs = profileSnapshot.childLongNullable("upgradedFromAnonymousAtEpochMs")
+        val snapshotUpiId = profileSnapshot.childString("upiId").normalizeUpiId()
         val snapshotWasAnonymous = profileSnapshot?.child("isAnonymous")?.getValue(Boolean::class.java) == true
         val now = System.currentTimeMillis()
 
@@ -451,6 +471,7 @@ class FirebaseAuthRepository(
             linkedProviders = linkedProviders,
             upgradedFromAnonymousAtEpochMs = upgradedFromAnonymousAtEpochMs,
             publicAccountId = resolvedPublicAccountId,
+            upiId = firstNotBlank(preferredUpiId.normalizeUpiId(), snapshotUpiId),
         )
     }
 
@@ -488,7 +509,7 @@ class FirebaseAuthRepository(
             database.reference.child("users").child(toProfile.userId).child("profile").get().await()
         }.getOrNull()
         val updates = mutableMapOf<String, Any?>()
-        mergeGroupMemberships(
+        val affectedGroupIds = mergeGroupMemberships(
             fromUserId = normalizedFromUserId,
             toProfile = toProfile,
             updates = updates,
@@ -536,6 +557,9 @@ class FirebaseAuthRepository(
 
         if (updates.isNotEmpty()) {
             database.reference.updateChildren(updates).await()
+            affectedGroupIds.forEach { groupId ->
+                recomputeAndPersistGroupBalances(root = database.reference, groupId = groupId)
+            }
         }
     }
 
@@ -649,7 +673,7 @@ class FirebaseAuthRepository(
         fromUserId: String,
         toProfile: UserProfile,
         updates: MutableMap<String, Any?>,
-    ) {
+    ): Set<String> {
         val groupIds = loadKnownGroupIdsForUser(fromUserId)
 
         groupIds.forEach { groupId ->
@@ -714,6 +738,16 @@ class FirebaseAuthRepository(
                     }
             }
 
+            updates.putAll(
+                collectSettlementActivityMergeUpdates(
+                    root = database.reference,
+                    groupId = groupId,
+                    fromUserId = fromUserId,
+                    toUserId = toProfile.userId,
+                    mergedDisplayName = mergedMember.displayName,
+                ),
+            )
+
             val dispatchSnapshot = database.reference.child("settlementDispatch").child(groupId).get().await()
             val dispatchMembers = dispatchSnapshot.child("members").children
                 .mapNotNull { it.getValue(String::class.java) }
@@ -726,6 +760,7 @@ class FirebaseAuthRepository(
                 updates["settlementDispatch/$groupId/memberCount"] = mergedDispatchMembers.size
             }
         }
+        return groupIds
     }
 
     private suspend fun loadKnownGroupIdsForUser(userId: String): Set<String> {
@@ -861,6 +896,11 @@ class FirebaseAuthRepository(
                 sourceMember.identifier,
             ),
             photoUrl = currentProfile.photoUrl ?: targetMember?.photoUrl ?: sourceMember.photoUrl,
+            upiId = firstNotBlank(
+                currentProfile.upiId,
+                targetMember?.upiId.orEmpty(),
+                sourceMember.upiId,
+            ),
             joinedAtEpochMs = mergedJoinedAt,
             role = mergedRole,
             active = true,
@@ -893,6 +933,7 @@ private fun UserProfile.toFirebaseProfileMap(): Map<String, Any> {
         "publicAccountId" to publicAccountId,
         "primaryAuthProvider" to primaryAuthProvider,
         "linkedProviders" to linkedProviders,
+        "upiId" to upiId,
     )
     photoUrl?.takeIf { it.isNotBlank() }?.let { payload["photoUrl"] = it }
     upgradedFromAnonymousAtEpochMs?.let { payload["upgradedFromAnonymousAtEpochMs"] = it }

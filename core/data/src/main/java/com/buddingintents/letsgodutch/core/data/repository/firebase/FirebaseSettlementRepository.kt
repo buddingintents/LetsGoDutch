@@ -6,19 +6,33 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
+import android.util.Log
 import com.buddingintents.letsgodutch.core.data.repository.SettlementRepository
 import com.buddingintents.letsgodutch.core.model.Balance
 import com.buddingintents.letsgodutch.core.model.Expense
 import com.buddingintents.letsgodutch.core.model.Group
+import com.buddingintents.letsgodutch.core.model.GroupActivityType
 import com.buddingintents.letsgodutch.core.model.Member
+import com.buddingintents.letsgodutch.core.model.SettlementTransfer
+import com.buddingintents.letsgodutch.core.model.SettlementUpiTransaction
+import com.buddingintents.letsgodutch.core.model.buildSettlementTransfers
+import com.buddingintents.letsgodutch.core.model.formatIndianCurrency
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import java.io.File
 import java.io.FileOutputStream
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class FirebaseSettlementRepository(
@@ -28,7 +42,79 @@ class FirebaseSettlementRepository(
 
     private val root = database.reference
 
-    override suspend fun generateSettlementPdf(groupId: String, actorUserId: String): Result<String> {
+    override fun observeSettlementActivities(groupId: String): Flow<List<SettlementUpiTransaction>> = callbackFlow {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val activitiesRef = root.child("settlementActivities").child(groupId)
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                val activities = snapshot.children
+                    .mapNotNull { it.toSettlementUpiTransactionOrNull() }
+                    .sortedByDescending { it.handledAtEpochMs }
+                trySend(activities)
+                scope.launch {
+                    runCatching {
+                        recomputeAndPersistGroupBalances(root = root, groupId = groupId)
+                    }.onFailure { throwable ->
+                        Log.w(
+                            "FirebaseSettlementRepo",
+                            "observeSettlementActivities failed to recompute balances.",
+                            throwable,
+                        )
+                    }
+                }
+            }
+
+            override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
+                Log.w(
+                    "FirebaseSettlementRepo",
+                    "observeSettlementActivities cancelled: code=${error.code}, message=${error.message}",
+                )
+                trySend(emptyList())
+                close()
+            }
+        }
+        activitiesRef.addValueEventListener(listener)
+        awaitClose {
+            activitiesRef.removeEventListener(listener)
+            scope.cancel()
+        }
+    }
+
+    override suspend fun recordSettlementActivity(
+        groupId: String,
+        activity: SettlementUpiTransaction,
+    ): Result<Unit> {
+        return runCatching {
+            val activityId = activity.activityId.takeIf { it.isNotBlank() }
+                ?: root.child("settlementActivities").child(groupId).push().key
+                ?: "activity_${System.currentTimeMillis()}"
+            val sanitizedActivity = activity.copy(
+                activityId = activityId,
+                handledAtEpochMs = activity.handledAtEpochMs.takeIf { it > 0L }
+                    ?: System.currentTimeMillis(),
+            )
+            val existingActivities = loadSettlementActivities(root = root, groupId = groupId)
+            val existingSuccessfulActivity = existingActivities.firstOrNull { existing ->
+                existing.transferKey == sanitizedActivity.transferKey &&
+                    existing.blocksFurtherUpiInitiation &&
+                    existing.activityId != sanitizedActivity.activityId
+            }
+            check(existingSuccessfulActivity == null) {
+                "A successful UPI payment is already recorded for this transfer."
+            }
+            root.child("settlementActivities")
+                .child(groupId)
+                .child(activityId)
+                .setValue(sanitizedActivity.toFirebaseMap())
+                .await()
+            recomputeAndPersistGroupBalances(root = root, groupId = groupId)
+        }
+    }
+
+    override suspend fun generateSettlementPdf(
+        groupId: String,
+        actorUserId: String,
+    ): Result<String> {
         return runCatching {
             val group = ensureGroupAndOwner(groupId = groupId, actorUserId = actorUserId)
             val members = root.child("groupMembers").child(groupId).get().await().children
@@ -40,6 +126,8 @@ class FirebaseSettlementRepository(
             val balances = root.child("balances").child(groupId).get().await().children
                 .mapNotNull { it.toBalanceOrNull() }
                 .sortedByDescending { it.netPaise }
+            val settlementActivities = loadSettlementActivities(root = root, groupId = groupId)
+                .sortedByDescending { it.handledAtEpochMs }
 
             val involvedUserIds = mutableSetOf<String>()
             involvedUserIds.add(group.ownerUserId)
@@ -50,6 +138,10 @@ class FirebaseSettlementRepository(
                 involvedUserIds.addAll(expense.participantUserIds)
             }
             balances.forEach { involvedUserIds.add(it.userId) }
+            settlementActivities.forEach { activity ->
+                involvedUserIds.add(activity.payerUserId)
+                involvedUserIds.add(activity.receiverUserId)
+            }
 
             val memberNameById = resolveDisplayNames(members = members, userIds = involvedUserIds)
             val file = generatePdfFile(
@@ -58,6 +150,7 @@ class FirebaseSettlementRepository(
                 expenses = expenses,
                 balances = balances,
                 memberNameById = memberNameById,
+                trackedUpiTransactions = settlementActivities,
             )
             file.absolutePath
         }
@@ -122,24 +215,43 @@ class FirebaseSettlementRepository(
 
     override suspend fun markGroupSettled(groupId: String, actorUserId: String): Result<Unit> {
         return runCatching {
-            ensureGroupAndOwner(groupId = groupId, actorUserId = actorUserId)
+            val group = ensureGroupAndOwner(groupId = groupId, actorUserId = actorUserId)
 
-            val hasExpenses = root.child("expenses").child(groupId).get().await().hasChildren()
-            check(hasExpenses) { "No expenses to settle." }
+            val expensesSnapshot = root.child("expenses").child(groupId).get().await()
+            val expenseCount = expensesSnapshot.childrenCount.toInt()
+            check(expensesSnapshot.hasChildren()) { "No expenses to settle." }
 
             val dispatchSnapshot = root.child("settlementDispatch").child(groupId).get().await()
             val settlementId = dispatchSnapshot.child("lastSettlementId").getValue(String::class.java).orEmpty()
             check(settlementId.isNotBlank()) {
                 "Settlement blocked: PDF is not dispatched to members."
             }
+            val settlementActivitiesSnapshot = root.child("settlementActivities").child(groupId).get().await()
 
             val updates = mapOf<String, Any?>(
                 "expenses/$groupId" to null,
                 "balances/$groupId" to null,
+                "settlementActivities/$groupId" to null,
+                "settlementDispatch/$groupId/history/$settlementId/settlementActivities" to
+                    (settlementActivitiesSnapshot.value ?: emptyMap<String, Any?>()),
                 "settlementDispatch/$groupId/settledAtEpochMs" to System.currentTimeMillis(),
                 "settlementDispatch/$groupId/settledByUserId" to actorUserId,
             )
             root.updateChildren(updates).await()
+            runCatching {
+                val actorName = resolveActivityDisplayName(root, groupId, actorUserId)
+                appendGroupActivity(
+                    root = root,
+                    groupId = groupId,
+                    type = GroupActivityType.SETTLEMENT_COMPLETED,
+                    actorUserId = actorUserId,
+                    actorName = actorName,
+                    title = "$actorName settled ${group.name}",
+                    detail = "$expenseCount expense(s) cleared after final settlement.",
+                )
+            }.onFailure { throwable ->
+                Log.w("FirebaseSettlementRepo", "markGroupSettled failed to append activity.", throwable)
+            }
         }
     }
 
@@ -210,6 +322,7 @@ class FirebaseSettlementRepository(
         expenses: List<Expense>,
         balances: List<Balance>,
         memberNameById: Map<String, String>,
+        trackedUpiTransactions: List<SettlementUpiTransaction>,
     ): File {
         val outputDir = File(appContext.filesDir, "settlements").apply { mkdirs() }
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
@@ -217,88 +330,90 @@ class FirebaseSettlementRepository(
         val outputFile = File(outputDir, "settlement_${safeGroupName}_$timestamp.pdf")
 
         val document = PdfDocument()
-        // Fresh Mint palette: charcoal surfaces with mint highlights.
+        // Light document palette for readability in shared PDFs.
         val pageBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 3f
-            color = Color.parseColor("#243046")
+            color = Color.parseColor("#D9E4E0")
         }
         val headerFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#121C28")
+            color = Color.parseColor("#F2FBF7")
         }
         val headerStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2f
-            color = Color.parseColor("#3DD68C")
+            color = Color.parseColor("#82C9A3")
         }
         val sectionFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#1C2333")
+            color = Color.parseColor("#FFFFFF")
         }
         val sectionStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = 2f
-            color = Color.parseColor("#2DB878")
+            color = Color.parseColor("#D7E5DE")
         }
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#3DD68C")
+            color = Color.parseColor("#157B5C")
             textSize = 42f
             isFakeBoldText = true
         }
         val subtitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#EAF4F1")
+            color = Color.parseColor("#163329")
             textSize = 28f
             isFakeBoldText = true
         }
         val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#EAF4F1")
+            color = Color.parseColor("#24332E")
             textSize = 20f
         }
         val smallPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#DDF7EA")
+            color = Color.parseColor("#5B6E67")
             textSize = 16f
         }
         val sectionTitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#3DD68C")
+            color = Color.parseColor("#157B5C")
             textSize = 24f
             isFakeBoldText = true
         }
         val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
-            color = Color.parseColor("#4A5969")
+            color = Color.parseColor("#D5DFDB")
             strokeWidth = 2f
         }
         val tableHeaderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#0D7A6E")
+            color = Color.parseColor("#E0F4EA")
         }
         val tableOddRowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#1A2533")
+            color = Color.parseColor("#FFFFFF")
         }
         val tableEvenRowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#243046")
+            color = Color.parseColor("#F7FBF9")
         }
         val barTrackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#314054")
+            color = Color.parseColor("#E8EFEC")
         }
         val positiveBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#3DD68C")
+            color = Color.parseColor("#2FA86D")
         }
         val negativeBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.parseColor("#FF7B7B")
+            color = Color.parseColor("#D86A6A")
         }
 
         val generatedAt = nowDisplay()
         val groupName = group.name.ifBlank { "Unnamed Group" }
         val ownerName = readFriendlyName(group.ownerUserId, memberNameById)
         val contentBottomLimit = PAGE_HEIGHT - PAGE_MARGIN - 38f
-        val suggestedTransactions = buildSuggestedTransactions(balances)
+        val suggestedTransactions = buildSettlementTransfers(balances)
+        val trackedTransactionsForPdf = trackedUpiTransactions
+            .sortedByDescending { it.handledAtEpochMs }
 
         var pageNumber = 1
         var page = document.startPage(
@@ -412,6 +527,23 @@ class FirebaseSettlementRepository(
             sectionFillPaint = sectionFillPaint,
             sectionStrokePaint = sectionStrokePaint,
         )
+
+        if (trackedTransactionsForPdf.isNotEmpty()) {
+            val trackedRows = trackedTransactionsForPdf.take(10).size
+            val trackedSectionHeight = 132f + (trackedRows * 62f)
+            ensureSpace(trackedSectionHeight + SECTION_GAP)
+            y = drawTrackedUpiTransactionsSection(
+                canvas = canvas,
+                yStart = y,
+                trackedTransactions = trackedTransactionsForPdf,
+                bodyPaint = bodyPaint,
+                smallPaint = smallPaint,
+                linePaint = linePaint,
+                sectionTitlePaint = sectionTitlePaint,
+                sectionFillPaint = sectionFillPaint,
+                sectionStrokePaint = sectionStrokePaint,
+            )
+        }
 
         ensureSpace(LEDGER_SECTION_HEADER_BLOCK_HEIGHT + LEDGER_ROW_HEIGHT)
         if (expenses.isEmpty()) {
@@ -628,13 +760,13 @@ class FirebaseSettlementRepository(
         val oval = RectF(centerX - radius, centerY - radius, centerX + radius, centerY + radius)
 
         val colors = listOf(
-            Color.parseColor("#3DD68C"),
-            Color.parseColor("#0D7A6E"),
-            Color.parseColor("#2DB878"),
+            Color.parseColor("#2FA86D"),
+            Color.parseColor("#157B5C"),
+            Color.parseColor("#6FBE93"),
             Color.parseColor("#6B7A8D"),
-            Color.parseColor("#5BE0A4"),
-            Color.parseColor("#58C7B4"),
-            Color.parseColor("#A5EED0"),
+            Color.parseColor("#9FD6B9"),
+            Color.parseColor("#58A9A1"),
+            Color.parseColor("#DCEFE6"),
         )
 
         val sortedPaidTotals = paidTotals.entries.sortedByDescending { it.value }
@@ -732,7 +864,7 @@ class FirebaseSettlementRepository(
     private fun drawSuggestedTransactionsSection(
         canvas: Canvas,
         yStart: Float,
-        suggestions: List<SettlementSuggestion>,
+        suggestions: List<SettlementTransfer>,
         memberNameById: Map<String, String>,
         sectionTitlePaint: Paint,
         bodyPaint: Paint,
@@ -772,6 +904,52 @@ class FirebaseSettlementRepository(
             )
             canvas.drawLine(card.left + 22f, y + 26f, card.right - 22f, y + 26f, linePaint)
             y += 44f
+        }
+        return card.bottom + SECTION_GAP
+    }
+
+    private fun drawTrackedUpiTransactionsSection(
+        canvas: Canvas,
+        yStart: Float,
+        trackedTransactions: List<SettlementUpiTransaction>,
+        bodyPaint: Paint,
+        smallPaint: Paint,
+        linePaint: Paint,
+        sectionTitlePaint: Paint,
+        sectionFillPaint: Paint,
+        sectionStrokePaint: Paint,
+    ): Float {
+        val topTransactions = trackedTransactions.take(10)
+        val sectionHeight = 132f + (topTransactions.size * 62f)
+        val card = drawSectionCard(
+            canvas = canvas,
+            yStart = yStart,
+            title = "Settlement Activity Events",
+            height = sectionHeight,
+            sectionTitlePaint = sectionTitlePaint,
+            sectionFillPaint = sectionFillPaint,
+            sectionStrokePaint = sectionStrokePaint,
+        )
+
+        var y = card.top + 74f
+        topTransactions.forEach { transaction ->
+            val actorLine = "${transaction.payerName.take(18)}  ->  ${transaction.receiverName.take(18)}"
+            canvas.drawText(actorLine, card.left + 22f, y + 18f, bodyPaint)
+            drawRightAlignedText(
+                canvas = canvas,
+                text = transaction.amountPaise.toInrDisplay(),
+                rightX = card.right - 22f,
+                y = y + 18f,
+                paint = bodyPaint,
+            )
+            canvas.drawText(
+                buildTrackedUpiMetadataLine(transaction).take(88),
+                card.left + 22f,
+                y + 44f,
+                smallPaint,
+            )
+            canvas.drawLine(card.left + 22f, y + 52f, card.right - 22f, y + 52f, linePaint)
+            y += 62f
         }
         return card.bottom + SECTION_GAP
     }
@@ -838,11 +1016,15 @@ class FirebaseSettlementRepository(
         canvas.drawRect(tableLeft, rowTop, tableRight, rowBottom, linePaint)
 
         val title = expense.title.take(34)
+        val note = expense.note.trim().take(48)
         val paidBy = readFriendlyName(expense.paidByUserId, memberNameById).take(16)
         val sharedWith = formatParticipantNames(expense.participantUserIds, memberNameById)
         val amount = expense.amountPaise.toInrDisplay()
 
         canvas.drawText(title, tableLeft + 14f, rowTop + 29f, bodyPaint)
+        if (note.isNotBlank()) {
+            canvas.drawText("Note: $note", tableLeft + 14f, rowTop + 50f, smallPaint)
+        }
         canvas.drawText(paidBy, tableLeft + 336f, rowTop + 29f, bodyPaint)
         canvas.drawText(sharedWith, tableLeft + 514f, rowTop + 29f, smallPaint)
         drawRightAlignedText(canvas, amount, tableRight - 16f, rowTop + 29f, bodyPaint)
@@ -900,60 +1082,37 @@ class FirebaseSettlementRepository(
         return if (joined.length <= 34) joined else "${joined.take(31)}..."
     }
 
-    private fun buildSuggestedTransactions(balances: List<Balance>): List<SettlementSuggestion> {
-        val creditors = balances
-            .filter { it.netPaise > 0L }
-            .map { MutableSettlementParty(userId = it.userId, amountPaise = it.netPaise) }
-            .sortedByDescending { it.amountPaise }
-            .toMutableList()
-        val debtors = balances
-            .filter { it.netPaise < 0L }
-            .map { MutableSettlementParty(userId = it.userId, amountPaise = abs(it.netPaise)) }
-            .sortedByDescending { it.amountPaise }
-            .toMutableList()
-
-        val suggestions = mutableListOf<SettlementSuggestion>()
-        var creditorIndex = 0
-        var debtorIndex = 0
-        while (creditorIndex < creditors.size && debtorIndex < debtors.size) {
-            val creditor = creditors[creditorIndex]
-            val debtor = debtors[debtorIndex]
-            val transferAmount = minOf(creditor.amountPaise, debtor.amountPaise)
-            if (transferAmount > 0L) {
-                suggestions += SettlementSuggestion(
-                    fromUserId = debtor.userId,
-                    toUserId = creditor.userId,
-                    amountPaise = transferAmount,
-                )
-            }
-            creditor.amountPaise -= transferAmount
-            debtor.amountPaise -= transferAmount
-            if (creditor.amountPaise <= 0L) creditorIndex += 1
-            if (debtor.amountPaise <= 0L) debtorIndex += 1
-        }
-        return suggestions
-    }
-
     private fun Long.toInrDisplay(): String {
-        val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
-        return formatter.format(this.toDouble() / 100.0)
+        return formatIndianCurrency(this)
     }
 
     private fun nowDisplay(): String {
         return SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.US).format(Date())
     }
+
+    private fun buildTrackedUpiMetadataLine(transaction: SettlementUpiTransaction): String {
+        val parts = mutableListOf(transaction.status.displayLabel, transaction.handledAtEpochMs.toPdfDateTime())
+        transaction.paymentAppName.takeIf { it.isNotBlank() }?.let { parts += "App: $it" }
+        if (transaction.statusConfirmedByUser) {
+            parts += "User confirmed"
+        }
+        transaction.transactionId.takeIf { it.isNotBlank() }?.let { parts += "Txn: $it" }
+        transaction.transactionRef.takeIf { it.isNotBlank() && it != transaction.transactionId }?.let {
+            parts += "Ref: $it"
+        }
+        transaction.approvalRefNo.takeIf {
+            it.isNotBlank() &&
+                it != transaction.transactionId &&
+                it != transaction.transactionRef
+        }?.let { parts += "Approval: $it" }
+        transaction.responseCode.takeIf { it.isNotBlank() }?.let { parts += "Code: $it" }
+        return parts.joinToString(" | ")
+    }
+
+    private fun Long.toPdfDateTime(): String {
+        return SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.US).format(Date(this))
+    }
 }
-
-private data class MutableSettlementParty(
-    val userId: String,
-    var amountPaise: Long,
-)
-
-private data class SettlementSuggestion(
-    val fromUserId: String,
-    val toUserId: String,
-    val amountPaise: Long,
-)
 
 private fun isManualMemberUserId(userId: String): Boolean {
     return userId.startsWith("guest_")
@@ -967,6 +1126,6 @@ private const val SECTION_GAP = 22f
 private const val CARD_INSET = 14f
 private const val CARD_CORNER = 18f
 private const val LEDGER_HEADER_HEIGHT = 36f
-private const val LEDGER_ROW_HEIGHT = 44f
+private const val LEDGER_ROW_HEIGHT = 62f
 private const val LEDGER_SECTION_HEADER_BLOCK_HEIGHT = 102f
 private const val LEDGER_SECTION_BOTTOM_PADDING = 18f

@@ -2,9 +2,14 @@ package com.buddingintents.letsgodutch.core.data.repository.firebase
 
 import com.buddingintents.letsgodutch.core.model.Balance
 import com.buddingintents.letsgodutch.core.model.Expense
+import com.buddingintents.letsgodutch.core.model.ExpenseCategory
 import com.buddingintents.letsgodutch.core.model.Group
+import com.buddingintents.letsgodutch.core.model.GroupActivity
+import com.buddingintents.letsgodutch.core.model.GroupActivityType
 import com.buddingintents.letsgodutch.core.model.Member
 import com.buddingintents.letsgodutch.core.model.Role
+import com.buddingintents.letsgodutch.core.model.SettlementUpiStatus
+import com.buddingintents.letsgodutch.core.model.SettlementUpiTransaction
 import com.buddingintents.letsgodutch.core.model.SplitShare
 import com.buddingintents.letsgodutch.core.model.SplitType
 import com.google.firebase.database.DataSnapshot
@@ -73,6 +78,7 @@ internal fun DataSnapshot.toMemberOrNull(): Member? {
     val userId = key ?: return null
     val email = childString("email")
     val displayName = childString("displayName")
+    val upiId = childString("upiId")
     val identifier = childString("identifier")
         .ifBlank { childString("deviceId") }
     val photoUrl = childString("photoUrl").ifBlank { null }
@@ -86,6 +92,7 @@ internal fun DataSnapshot.toMemberOrNull(): Member? {
         email = resolvedEmail,
         identifier = identifier,
         photoUrl = photoUrl,
+        upiId = upiId,
         joinedAtEpochMs = childLongNullable("joinedAtEpochMs")
             ?: childLongNullable("joinedAt")
             ?: 0L,
@@ -131,6 +138,8 @@ internal fun DataSnapshot.toExpenseOrNull(): Expense? {
         participantUserIds = participantUserIds,
         splitType = splitType,
         shares = shares,
+        category = expenseCategoryFromValue(childString("category")),
+        note = childString("note"),
         createdByUserId = createdBy,
         createdAtEpochMs = childLong("createdAtEpochMs"),
         updatedAtEpochMs = childLong("updatedAtEpochMs"),
@@ -142,6 +151,53 @@ internal fun DataSnapshot.toBalanceOrNull(): Balance? {
     return Balance(
         userId = userId,
         netPaise = childLong("netPaise"),
+    )
+}
+
+internal fun DataSnapshot.toSettlementUpiTransactionOrNull(): SettlementUpiTransaction? {
+    val activityId = key ?: return null
+    val transferKey = childString("transferKey")
+    val payerUserId = childString("payerUserId")
+    val receiverUserId = childString("receiverUserId")
+    if (transferKey.isBlank() || payerUserId.isBlank() || receiverUserId.isBlank()) return null
+
+    return SettlementUpiTransaction(
+        activityId = activityId,
+        transferKey = transferKey,
+        payerUserId = payerUserId,
+        payerName = childString("payerName"),
+        receiverUserId = receiverUserId,
+        receiverName = childString("receiverName"),
+        receiverUpiId = childString("receiverUpiId"),
+        amountPaise = childLong("amountPaise"),
+        status = settlementUpiStatusFromValue(childString("status")),
+        paymentAppName = childString("paymentAppName"),
+        paymentAppPackageName = childString("paymentAppPackageName"),
+        statusConfirmedByUser = childBool("statusConfirmedByUser", default = false),
+        transactionRef = childString("transactionRef"),
+        transactionId = childString("transactionId"),
+        approvalRefNo = childString("approvalRefNo"),
+        responseCode = childString("responseCode"),
+        rawResponse = childString("rawResponse"),
+        handledAtEpochMs = childLongNullable("handledAtEpochMs") ?: 0L,
+    )
+}
+
+internal fun DataSnapshot.toGroupActivityOrNull(): GroupActivity? {
+    val activityId = key ?: return null
+    val groupId = childString("groupId")
+    val title = childString("title")
+    if (groupId.isBlank() || title.isBlank()) return null
+
+    return GroupActivity(
+        activityId = activityId,
+        groupId = groupId,
+        type = groupActivityTypeFromValue(childString("type")),
+        actorUserId = childString("actorUserId"),
+        actorName = childString("actorName"),
+        title = title,
+        detail = childString("detail"),
+        createdAtEpochMs = childLong("createdAtEpochMs"),
     )
 }
 
@@ -165,6 +221,7 @@ internal fun Member.toFirebaseMap(): Map<String, Any> {
     val payload = mutableMapOf<String, Any>(
         "displayName" to displayName,
         "email" to email,
+        "upiId" to upiId,
         "joinedAtEpochMs" to joinedAtEpochMs,
         "role" to role.name,
         "active" to active,
@@ -192,6 +249,8 @@ internal fun Expense.toFirebaseMap(): Map<String, Any> {
         "participantUserIds" to participantUserIds,
         "splitType" to splitType.name,
         "shares" to sharesMap,
+        "category" to category.name,
+        "note" to note,
         "createdByUserId" to createdByUserId,
         "createdAtEpochMs" to createdAtEpochMs,
         "updatedAtEpochMs" to updatedAtEpochMs,
@@ -202,6 +261,40 @@ internal fun Balance.toFirebaseMap(): Map<String, Any> {
     return mapOf(
         "userId" to userId,
         "netPaise" to netPaise,
+    )
+}
+
+internal fun SettlementUpiTransaction.toFirebaseMap(): Map<String, Any> {
+    return mapOf(
+        "transferKey" to transferKey,
+        "payerUserId" to payerUserId,
+        "payerName" to payerName,
+        "receiverUserId" to receiverUserId,
+        "receiverName" to receiverName,
+        "receiverUpiId" to receiverUpiId,
+        "amountPaise" to amountPaise,
+        "status" to status.name,
+        "paymentAppName" to paymentAppName,
+        "paymentAppPackageName" to paymentAppPackageName,
+        "statusConfirmedByUser" to statusConfirmedByUser,
+        "transactionRef" to transactionRef,
+        "transactionId" to transactionId,
+        "approvalRefNo" to approvalRefNo,
+        "responseCode" to responseCode,
+        "rawResponse" to rawResponse,
+        "handledAtEpochMs" to handledAtEpochMs,
+    )
+}
+
+internal fun GroupActivity.toFirebaseMap(): Map<String, Any> {
+    return mapOf(
+        "groupId" to groupId,
+        "type" to type.name,
+        "actorUserId" to actorUserId,
+        "actorName" to actorName,
+        "title" to title,
+        "detail" to detail,
+        "createdAtEpochMs" to createdAtEpochMs,
     )
 }
 
@@ -232,8 +325,20 @@ private fun splitTypeFromValue(value: String): SplitType {
     return SplitType.entries.firstOrNull { it.name == value } ?: SplitType.EQUAL
 }
 
+private fun expenseCategoryFromValue(value: String): ExpenseCategory {
+    return ExpenseCategory.entries.firstOrNull { it.name == value } ?: ExpenseCategory.OTHER
+}
+
 private fun roleFromValue(value: String): Role {
     return Role.entries.firstOrNull { it.name == value } ?: Role.MEMBER
+}
+
+private fun settlementUpiStatusFromValue(value: String): SettlementUpiStatus {
+    return SettlementUpiStatus.entries.firstOrNull { it.name == value } ?: SettlementUpiStatus.UNKNOWN
+}
+
+private fun groupActivityTypeFromValue(value: String): GroupActivityType {
+    return GroupActivityType.entries.firstOrNull { it.name == value } ?: GroupActivityType.EXPENSE_ADDED
 }
 
 private val backendPaymentDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy", Locale.US)

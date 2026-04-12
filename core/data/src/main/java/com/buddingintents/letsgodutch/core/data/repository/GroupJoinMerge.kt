@@ -1,7 +1,9 @@
 package com.buddingintents.letsgodutch.core.data.repository
 
 import com.buddingintents.letsgodutch.core.model.Expense
+import com.buddingintents.letsgodutch.core.model.SettlementUpiTransaction
 import com.buddingintents.letsgodutch.core.model.SplitShare
+import com.buddingintents.letsgodutch.core.model.settlementTransferKey
 
 internal fun Expense.mergeMemberIntoUser(
     fromUserId: String,
@@ -40,6 +42,30 @@ internal fun Map<String, Long>.mergeMemberBalanceIntoUser(
     return merged
 }
 
+internal fun SettlementUpiTransaction.mergeMemberIntoUser(
+    fromUserId: String,
+    toUserId: String,
+    mergedDisplayName: String = "",
+): SettlementUpiTransaction {
+    if (fromUserId.isBlank() || toUserId.isBlank() || fromUserId == toUserId) return this
+
+    val mergedPayerUserId = payerUserId.replaceUserId(fromUserId = fromUserId, toUserId = toUserId)
+    val mergedReceiverUserId = receiverUserId.replaceUserId(fromUserId = fromUserId, toUserId = toUserId)
+    val mergedTransferKey = transferKey.rewriteSettlementTransferKey(
+        fromUserId = fromUserId,
+        toUserId = toUserId,
+        fallbackAmountPaise = amountPaise,
+    )
+
+    return copy(
+        transferKey = mergedTransferKey,
+        payerUserId = mergedPayerUserId,
+        payerName = if (payerUserId == fromUserId) mergedDisplayName.ifBlank { payerName } else payerName,
+        receiverUserId = mergedReceiverUserId,
+        receiverName = if (receiverUserId == fromUserId) mergedDisplayName.ifBlank { receiverName } else receiverName,
+    )
+}
+
 internal fun Iterable<String>.mergeUserIdReferences(
     fromUserId: String,
     toUserId: String,
@@ -58,6 +84,28 @@ private fun String.replaceUserId(
     toUserId: String,
 ): String {
     return if (this == fromUserId) toUserId else this
+}
+
+private fun String.rewriteSettlementTransferKey(
+    fromUserId: String,
+    toUserId: String,
+    fallbackAmountPaise: Long,
+): String {
+    val parts = split('|')
+    if (parts.size != 4) return this
+
+    val mergedFromUserId = parts[0].replaceUserId(fromUserId = fromUserId, toUserId = toUserId)
+    val mergedToUserId = parts[1].replaceUserId(fromUserId = fromUserId, toUserId = toUserId)
+    if (mergedFromUserId == parts[0] && mergedToUserId == parts[1]) return this
+
+    val amountPaise = parts[2].toLongOrNull() ?: fallbackAmountPaise
+    val transferIndex = parts[3].toIntOrNull() ?: 0
+    return settlementTransferKey(
+        fromUserId = mergedFromUserId,
+        toUserId = mergedToUserId,
+        amountPaise = amountPaise,
+        index = transferIndex,
+    )
 }
 
 private fun List<SplitShare>.mergeDuplicateShares(): List<SplitShare> {

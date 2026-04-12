@@ -2,6 +2,7 @@ package com.buddingintents.letsgodutch.core.data.repository
 
 import com.buddingintents.letsgodutch.core.model.ExitLiabilityChoice
 import com.buddingintents.letsgodutch.core.model.Group
+import com.buddingintents.letsgodutch.core.model.GroupActivity
 import com.buddingintents.letsgodutch.core.model.JoinGroupPreview
 import com.buddingintents.letsgodutch.core.model.Member
 import com.buddingintents.letsgodutch.core.model.Role
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 interface GroupRepository {
     fun observeGroupsForUser(userId: String): Flow<List<Group>>
     fun observeMembers(groupId: String): Flow<List<Member>>
+    fun observeActivities(groupId: String): Flow<List<GroupActivity>>
     suspend fun createGroup(
         name: String,
         ownerUserId: String,

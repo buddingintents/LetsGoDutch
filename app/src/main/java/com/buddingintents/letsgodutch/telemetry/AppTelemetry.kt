@@ -9,6 +9,7 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
 
 object AppTelemetry {
     private const val TAG = "LetsGoDutchTelemetry"
+    private const val DEFAULT_SCREEN_CLASS = "LetsGoDutchApp"
     private lateinit var appContext: Context
 
     fun initialize(context: Context) {
@@ -60,6 +61,19 @@ object AppTelemetry {
         }.onFailure { error ->
             Log.w(TAG, "Unable to log analytics event: $name", error)
         }
+    }
+
+    fun logScreenView(
+        screenName: String,
+        params: Map<String, Any?> = emptyMap(),
+    ) {
+        logEvent(
+            FirebaseAnalytics.Event.SCREEN_VIEW,
+            mapOf(
+                FirebaseAnalytics.Param.SCREEN_NAME to screenName,
+                FirebaseAnalytics.Param.SCREEN_CLASS to DEFAULT_SCREEN_CLASS,
+            ) + params,
+        )
     }
 
     fun recordNonFatal(

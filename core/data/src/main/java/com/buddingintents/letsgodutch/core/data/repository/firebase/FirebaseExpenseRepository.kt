@@ -2,9 +2,12 @@ package com.buddingintents.letsgodutch.core.data.repository.firebase
 
 import android.util.Log
 import com.buddingintents.letsgodutch.core.data.repository.ExpenseRepository
+import com.buddingintents.letsgodutch.core.data.repository.mergeMemberBalanceIntoUser
 import com.buddingintents.letsgodutch.core.data.split.SplitCalculator
 import com.buddingintents.letsgodutch.core.model.Balance
 import com.buddingintents.letsgodutch.core.model.Expense
+import com.buddingintents.letsgodutch.core.model.GroupActivityType
+import com.buddingintents.letsgodutch.core.model.formatIndianCurrency
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
@@ -35,7 +38,7 @@ class FirebaseExpenseRepository(
                 trySend(expenses)
                 scope.launch {
                     runCatching {
-                        recomputeAndPersistBalances(groupId = groupId, expenses = expenses)
+                        recomputeAndPersistGroupBalances(root = root, groupId = groupId)
                     }.onFailure { throwable ->
                         Log.w("FirebaseExpenseRepo", "observeExpenses failed to recompute balances.", throwable)
                     }
@@ -63,9 +66,51 @@ class FirebaseExpenseRepository(
         val balancesRef = root.child("balances").child(groupId)
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val balances = snapshot.children.mapNotNull { it.toBalanceOrNull() }
-                    .sortedBy { it.userId }
-                trySend(balances)
+                scope.launch {
+                    val activeMembers = runCatching {
+                        root.child("groupMembers").child(groupId).get().await().children
+                            .mapNotNull { it.toMemberOrNull() }
+                            .filter { it.active }
+                    }.getOrDefault(emptyList())
+                    val activeMemberIds = activeMembers.map { it.userId }.toSet()
+                    val legacyAliasUserIds = buildLegacyAliasMap(activeMembers).keys
+                    val rawBalances = snapshot.children.mapNotNull { it.toBalanceOrNull() }
+                    val requiresRepair = rawBalances.any { balance ->
+                        balance.userId !in activeMemberIds || balance.userId in legacyAliasUserIds
+                    }
+                    val effectiveSnapshot = if (requiresRepair) {
+                        runCatching {
+                            recomputeAndPersistGroupBalances(root = root, groupId = groupId)
+                            balancesRef.get().await()
+                        }.onFailure { throwable ->
+                            Log.w(
+                                "FirebaseExpenseRepo",
+                                "observeBalances failed to self-heal stale balance rows.",
+                                throwable,
+                            )
+                        }.getOrDefault(snapshot)
+                    } else {
+                        snapshot
+                    }
+
+                    var normalizedBalanceMap = effectiveSnapshot.children
+                        .mapNotNull { it.toBalanceOrNull() }
+                        .associate { balance -> balance.userId to balance.netPaise }
+                    buildLegacyAliasMap(activeMembers).forEach { (legacyAliasUserId, canonicalUserId) ->
+                        normalizedBalanceMap = normalizedBalanceMap.mergeMemberBalanceIntoUser(
+                            fromUserId = legacyAliasUserId,
+                            toUserId = canonicalUserId,
+                        )
+                    }
+                    val balances = normalizedBalanceMap.entries.map { (userId, netPaise) ->
+                        Balance(userId = userId, netPaise = netPaise)
+                    }
+                        .filter { balance ->
+                            balance.userId in activeMemberIds || balance.netPaise != 0L
+                        }
+                        .sortedBy { it.userId }
+                    trySend(balances)
+                }
             }
 
             override fun onCancelled(error: DatabaseError) {
@@ -99,8 +144,22 @@ class FirebaseExpenseRepository(
                 .setValue(expense.toFirebaseMap())
                 .await()
 
-            val expenses = loadExpenses(expense.groupId)
-            recomputeAndPersistBalances(groupId = expense.groupId, expenses = expenses)
+            recomputeAndPersistGroupBalances(root = root, groupId = expense.groupId)
+            runCatching {
+                val actorName = resolveActivityDisplayName(root, expense.groupId, expense.createdByUserId)
+                appendGroupActivity(
+                    root = root,
+                    groupId = expense.groupId,
+                    type = GroupActivityType.EXPENSE_ADDED,
+                    actorUserId = expense.createdByUserId,
+                    actorName = actorName,
+                    title = "$actorName added ${expense.title}",
+                    detail = "${expense.amountPaise.toInrDisplay()} • ${expense.category.displayLabel}",
+                    createdAtEpochMs = expense.updatedAtEpochMs,
+                )
+            }.onFailure { throwable ->
+                Log.w("FirebaseExpenseRepo", "addExpense failed to append activity.", throwable)
+            }
             runCatching {
                 enqueueGroupNotification(
                     groupId = expense.groupId,
@@ -140,8 +199,22 @@ class FirebaseExpenseRepository(
                 .setValue(updatedExpense.toFirebaseMap())
                 .await()
 
-            val expenses = loadExpenses(updatedExpense.groupId)
-            recomputeAndPersistBalances(groupId = updatedExpense.groupId, expenses = expenses)
+            recomputeAndPersistGroupBalances(root = root, groupId = updatedExpense.groupId)
+            runCatching {
+                val actorName = resolveActivityDisplayName(root, updatedExpense.groupId, actorUserId)
+                appendGroupActivity(
+                    root = root,
+                    groupId = updatedExpense.groupId,
+                    type = GroupActivityType.EXPENSE_UPDATED,
+                    actorUserId = actorUserId,
+                    actorName = actorName,
+                    title = "$actorName updated ${updatedExpense.title}",
+                    detail = "${updatedExpense.amountPaise.toInrDisplay()} • ${updatedExpense.category.displayLabel}",
+                    createdAtEpochMs = updatedExpense.updatedAtEpochMs,
+                )
+            }.onFailure { throwable ->
+                Log.w("FirebaseExpenseRepo", "updateExpense failed to append activity.", throwable)
+            }
             runCatching {
                 enqueueGroupNotification(
                     groupId = updatedExpense.groupId,
@@ -166,6 +239,14 @@ class FirebaseExpenseRepository(
             check(canActorModifyExpense(currentExpense, actorUserId)) {
                 "Only expense creator or an owner can delete."
             }
+            val hasRecordedPayments = root.child("settlementActivities")
+                .child(groupId)
+                .get()
+                .await()
+                .hasChildren()
+            check(!hasRecordedPayments) {
+                "Expenses cannot be deleted after payment activity starts. Settle this group first."
+            }
 
             root.child("expenses")
                 .child(groupId)
@@ -173,8 +254,21 @@ class FirebaseExpenseRepository(
                 .removeValue()
                 .await()
 
-            val expenses = loadExpenses(groupId)
-            recomputeAndPersistBalances(groupId = groupId, expenses = expenses)
+            recomputeAndPersistGroupBalances(root = root, groupId = groupId)
+            runCatching {
+                val actorName = resolveActivityDisplayName(root, groupId, actorUserId)
+                appendGroupActivity(
+                    root = root,
+                    groupId = groupId,
+                    type = GroupActivityType.EXPENSE_DELETED,
+                    actorUserId = actorUserId,
+                    actorName = actorName,
+                    title = "$actorName deleted ${currentExpense.title}",
+                    detail = "${currentExpense.amountPaise.toInrDisplay()} • ${currentExpense.category.displayLabel}",
+                )
+            }.onFailure { throwable ->
+                Log.w("FirebaseExpenseRepo", "deleteExpense failed to append activity.", throwable)
+            }
             runCatching {
                 enqueueGroupNotification(
                     groupId = groupId,
@@ -207,53 +301,6 @@ class FirebaseExpenseRepository(
             .getValue(String::class.java)
             .orEmpty()
         return ownerId == actorUserId
-    }
-
-    private suspend fun recomputeAndPersistBalances(groupId: String, expenses: List<Expense>) {
-        val memberIds = root.child("groupMembers").child(groupId).get().await().children
-            .mapNotNull { child ->
-                if (child.childBool("active", default = true)) child.key else null
-            }
-            .toSet()
-
-        val balances = computeBalances(expenses)
-            .toMutableMap()
-            .apply {
-                memberIds.forEach { memberId ->
-                    putIfAbsent(memberId, 0L)
-                }
-            }
-
-        val payload = balances.mapValues { (userId, netPaise) ->
-            mapOf(
-                "userId" to userId,
-                "netPaise" to netPaise,
-            )
-        }
-        root.child("balances").child(groupId).setValue(payload).await()
-    }
-
-    private suspend fun loadExpenses(groupId: String): List<Expense> {
-        return root.child("expenses").child(groupId).get().await().children
-            .mapNotNull { it.toExpenseOrNull() }
-    }
-
-    private fun computeBalances(expenses: List<Expense>): Map<String, Long> {
-        val balances = mutableMapOf<String, Long>()
-        expenses.forEach { expense ->
-            val allocation = SplitCalculator.allocate(
-                totalPaise = expense.amountPaise,
-                participantUserIds = expense.participantUserIds,
-                splitType = expense.splitType,
-                shares = expense.shares,
-            ).getOrElse { return@forEach }
-
-            allocation.forEach { (userId, amount) ->
-                balances[userId] = (balances[userId] ?: 0L) - amount
-            }
-            balances[expense.paidByUserId] = (balances[expense.paidByUserId] ?: 0L) + expense.amountPaise
-        }
-        return balances
     }
 
     private suspend fun enqueueGroupNotification(
@@ -292,11 +339,7 @@ class FirebaseExpenseRepository(
 }
 
 private fun Long.toInrDisplay(): String {
-    val abs = kotlin.math.abs(this)
-    val rupees = abs / 100
-    val paise = abs % 100
-    val prefix = if (this < 0) "-INR " else "INR "
-    return "$prefix$rupees.${paise.toString().padStart(2, '0')}"
+    return formatIndianCurrency(this, currencyPrefix = "INR ")
 }
 
 private fun isManualMemberUserId(userId: String): Boolean {

@@ -3,11 +3,16 @@ package com.buddingintents.letsgodutch
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.buddingintents.letsgodutch.telemetry.AppTelemetry
 
 internal const val PLAY_STORE_DOWNLOAD_URL =
     "https://play.google.com/store/apps/details?id=com.buddingintents.letsgodutch"
 
 internal fun Context.openPlayStoreInlineInstall(source: String) {
+    AppTelemetry.logEvent(
+        "app_update_play_store_open",
+        mapOf("source" to source),
+    )
     val webUri = Uri.parse("https://play.google.com/d")
         .buildUpon()
         .appendQueryParameter("id", packageName)
